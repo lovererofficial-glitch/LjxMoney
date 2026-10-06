@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "ios": {
+      "bundleIdentifier": "com.ljxmoney.app",
       "supportsTablet": true
     },
     "android": {
@@ -25,6 +26,13 @@
       "expo-router",
       "expo-status-bar",
       "@react-native-community/datetimepicker"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b9bf126a-382b-4ce2-9ebd-33b5c8165a28"
+      }
+    },
+    "owner": "ljx285"
   }
 }

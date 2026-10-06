@@ -1,0 +1,115 @@
+name: iOS Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-ios:
+    name: Build iOS IPA
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Expo token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "::error::Add the EXPO_TOKEN repository secret before running this workflow."
+            exit 1
+          fi
+
+      - name: Check EAS project link
+        run: |
+          node -e '
+            const app = require("./app.json").expo;
+            const projectId = app.extra?.eas?.projectId;
+            if (typeof projectId !== "string" || projectId.length === 0) {
+              console.error("EAS project is not linked. Run `npx eas-cli@24.11.0 init` locally, then commit the generated extra.eas.projectId in app.json.");
+              process.exit(1);
+            }
+            if (!app.ios?.bundleIdentifier) {
+              console.error("Expo config is missing ios.bundleIdentifier.");
+              process.exit(1);
+            }
+          '
+
+      - name: Build and download IPA from EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          npx eas-cli@24.11.0 build \
+            --platform ios \
+            --profile production \
+            --non-interactive \
+            --wait \
+            --json > "$RUNNER_TEMP/eas-build.json"
+
+          IPA_URL="$(node -e '
+            const fs = require("node:fs");
+            const builds = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (!Array.isArray(builds) || builds.length !== 1 || builds[0].status !== "FINISHED") {
+              console.error("EAS did not return exactly one successful iOS build.");
+              process.exit(1);
+            }
+            const archiveUrl = builds[0].artifacts?.applicationArchiveUrl;
+            if (typeof archiveUrl !== "string") {
+              console.error("EAS did not return an application archive URL.");
+              process.exit(1);
+            }
+            const url = new URL(archiveUrl);
+            if (url.protocol !== "https:") {
+              console.error("EAS did not return a secure HTTPS application archive URL.");
+              process.exit(1);
+            }
+            process.stdout.write(url.href);
+          ' "$RUNNER_TEMP/eas-build.json")"
+
+          mkdir -p dist/ios
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output dist/ios/LjxMoney.ipa \
+            "$IPA_URL"
+
+          if [ ! -s dist/ios/LjxMoney.ipa ]; then
+            echo "::error::EAS IPA download did not produce a non-empty file."
+            exit 1
+          fi
+
+          if ! unzip -tq dist/ios/LjxMoney.ipa >/dev/null ||
+            ! unzip -Z1 dist/ios/LjxMoney.ipa | grep -Eq '^Payload/[^/]+\.app/Info\.plist$'; then
+            echo "::error::The downloaded archive is not a valid iOS IPA."
+            exit 1
+          fi
+
+      - name: Upload iOS IPA
+        uses: actions/upload-artifact@v5
+        with:
+          name: LjxMoney-iOS-IPA
+          path: dist/ios/LjxMoney.ipa
+          if-no-files-found: error
+          retention-days: 14
