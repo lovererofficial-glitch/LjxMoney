@@ -1,6 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { appStorage } from '../lib/storage';
 import { createFinanceStore } from './financeStoreCore';
 
-export const useFinanceStore = createFinanceStore(AsyncStorage);
+export const useFinanceStore = createFinanceStore(appStorage);
 export { getTotalsForRange } from './financeStoreCore';

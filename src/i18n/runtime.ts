@@ -1,5 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { appStorage } from '../lib/storage';
 import { createLanguageStore } from './languageStore';
 
-export const useLanguageStore = createLanguageStore(AsyncStorage);
+export const useLanguageStore = createLanguageStore(appStorage);
