@@ -15,9 +15,9 @@ concurrency:
 
 jobs:
   build-ios:
-    name: Build iOS IPA
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
+    name: Build unsigned IPA for Sideloadly
+    runs-on: macos-15
+    timeout-minutes: 90
 
     steps:
       - name: Check out repository
@@ -30,83 +30,87 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
+      - name: Install JavaScript dependencies
         run: npm ci
 
-      - name: Check Expo token
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Generate iOS project
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods dependencies
         run: |
-          if [ -z "${EXPO_TOKEN:-}" ]; then
-            echo "::error::Add the EXPO_TOKEN repository secret before running this workflow."
+          set -euo pipefail
+          PROJECT_FILE="$(find ios -maxdepth 1 -name '*.xcodeproj' -print -quit)"
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "::error::Expo prebuild did not generate an Xcode project."
             exit 1
           fi
+          (cd ios && pod install)
 
-      - name: Check EAS project link
-        run: |
-          node -e '
-            const app = require("./app.json").expo;
-            const projectId = app.extra?.eas?.projectId;
-            if (typeof projectId !== "string" || projectId.length === 0) {
-              console.error("EAS project is not linked. Run `npx eas-cli@24.11.0 init` locally, then commit the generated extra.eas.projectId in app.json.");
-              process.exit(1);
-            }
-            if (!app.ios?.bundleIdentifier) {
-              console.error("Expo config is missing ios.bundleIdentifier.");
-              process.exit(1);
-            }
-          '
-
-      - name: Build and download IPA from EAS
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Build and package unsigned IPA
         run: |
           set -euo pipefail
 
-          npx eas-cli@24.11.0 build \
-            --platform ios \
-            --profile production \
-            --non-interactive \
-            --wait \
-            --json > "$RUNNER_TEMP/eas-build.json"
-
-          IPA_URL="$(node -e '
-            const fs = require("node:fs");
-            const builds = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            if (!Array.isArray(builds) || builds.length !== 1 || builds[0].status !== "FINISHED") {
-              console.error("EAS did not return exactly one successful iOS build.");
-              process.exit(1);
-            }
-            const archiveUrl = builds[0].artifacts?.applicationArchiveUrl;
-            if (typeof archiveUrl !== "string") {
-              console.error("EAS did not return an application archive URL.");
-              process.exit(1);
-            }
-            const url = new URL(archiveUrl);
-            if (url.protocol !== "https:") {
-              console.error("EAS did not return a secure HTTPS application archive URL.");
-              process.exit(1);
-            }
-            process.stdout.write(url.href);
-          ' "$RUNNER_TEMP/eas-build.json")"
-
-          mkdir -p dist/ios
-          curl --fail --location --retry 3 --retry-all-errors \
-            --output dist/ios/LjxMoney.ipa \
-            "$IPA_URL"
-
-          if [ ! -s dist/ios/LjxMoney.ipa ]; then
-            echo "::error::EAS IPA download did not produce a non-empty file."
+          PROJECT_FILE="$(find ios -maxdepth 1 -name '*.xcodeproj' -print -quit)"
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "::error::No generated Xcode project was found."
             exit 1
           fi
+
+          PROJECT_NAME="$(basename "$PROJECT_FILE" .xcodeproj)"
+          WORKSPACE="ios/${PROJECT_NAME}.xcworkspace"
+          if [ ! -d "$WORKSPACE" ]; then
+            echo "::error::CocoaPods did not generate the expected Xcode workspace: $WORKSPACE"
+            exit 1
+          fi
+
+          SCHEME="$PROJECT_NAME"
+          xcodebuild -list -json -workspace "$WORKSPACE" |
+            node -e '
+              let input = "";
+              process.stdin.setEncoding("utf8");
+              process.stdin.on("data", chunk => input += chunk);
+              process.stdin.on("end", () => {
+                const config = JSON.parse(input);
+                const schemes = config.workspace?.schemes ?? config.project?.schemes ?? [];
+                const expected = process.argv[1];
+                if (!schemes.includes(expected)) {
+                  console.error(`Generated Xcode scheme "${expected}" was not found.`);
+                  process.exit(1);
+                }
+              });
+            ' "$SCHEME"
+
+          DERIVED_DATA="$RUNNER_TEMP/LjxMoneyDerivedData"
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+          APP_PATH="$DERIVED_DATA/Build/Products/Release-iphoneos/${PROJECT_NAME}.app"
+          if [ ! -d "$APP_PATH" ] || [ ! -f "$APP_PATH/Info.plist" ]; then
+            echo "::error::Xcode did not produce the expected iOS app bundle."
+            exit 1
+          fi
+
+          mkdir -p dist/ios/Payload
+          ditto "$APP_PATH" "dist/ios/Payload/${PROJECT_NAME}.app"
+          plutil -lint "dist/ios/Payload/${PROJECT_NAME}.app/Info.plist"
+          (cd dist/ios && /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload LjxMoney.ipa)
 
           if ! unzip -tq dist/ios/LjxMoney.ipa >/dev/null ||
             ! unzip -Z1 dist/ios/LjxMoney.ipa | grep -Eq '^Payload/[^/]+\.app/Info\.plist$'; then
-            echo "::error::The downloaded archive is not a valid iOS IPA."
+            echo "::error::The generated archive is not a valid iOS IPA."
             exit 1
           fi
 
-      - name: Upload iOS IPA
+      - name: Upload IPA for Sideloadly
         uses: actions/upload-artifact@v5
         with:
           name: LjxMoney-iOS-IPA
