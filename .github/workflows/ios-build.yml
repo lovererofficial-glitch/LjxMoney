@@ -17,6 +17,11 @@ jobs:
   build-ios:
     name: Build unsigned IPA for Sideloadly
     runs-on: macos-26
+
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
     timeout-minutes: 90
 
     steps:
@@ -33,9 +38,39 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
-      - name: Validate app scheme (guards against startup deep link crash)
+      - name: Verify Supabase build configuration
         run: |
-          node -e "const {expo}=require('./app.json');if(!expo.scheme){console.error('::error::expo.scheme is missing from app.json. Standalone builds crash at startup: Cannot make a deep link into a standalone app with no custom scheme defined.');process.exit(1);}console.log('expo.scheme =',expo.scheme);"
+          set -euo pipefail
+
+          if [ -z "${EXPO_PUBLIC_SUPABASE_URL:-}" ]; then
+            echo "::error::EXPO_PUBLIC_SUPABASE_URL is missing"
+            exit 1
+          fi
+
+          if [ -z "${EXPO_PUBLIC_SUPABASE_ANON_KEY:-}" ]; then
+            echo "::error::EXPO_PUBLIC_SUPABASE_ANON_KEY is missing"
+            exit 1
+          fi
+
+          echo "Supabase URL: ${EXPO_PUBLIC_SUPABASE_URL}"
+          echo "Supabase publishable key: configured"
+
+      - name: Validate app scheme
+        run: |
+          node -e "
+            const { expo } = require('./app.json');
+
+            if (!expo.scheme) {
+              console.error(
+                '::error::expo.scheme is missing from app.json. ' +
+                'Standalone builds crash at startup: ' +
+                'Cannot make a deep link into a standalone app with no custom scheme defined.'
+              );
+              process.exit(1);
+            }
+
+            console.log('expo.scheme =', expo.scheme);
+          "
 
       - name: Generate iOS project
         run: npx expo prebuild --platform ios --no-install
@@ -43,29 +78,42 @@ jobs:
       - name: Verify generated URL scheme in Info.plist
         run: |
           set -euo pipefail
+
           SCHEME="$(node -p "require('./app.json').expo.scheme")"
           PLIST="$(find ios -maxdepth 2 -name Info.plist -not -path '*Tests*' -print -quit)"
-          if [ -z "$PLIST" ] || ! grep -q "<string>${SCHEME}</string>" "$PLIST"; then
+
+          if [ -z "$PLIST" ]; then
+            echo "::error::Could not find generated Info.plist."
+            exit 1
+          fi
+
+          if ! grep -q "<string>${SCHEME}</string>" "$PLIST"; then
             echo "::error::Generated Info.plist does not contain the URL scheme '${SCHEME}'."
             exit 1
           fi
+
           echo "Info.plist URL scheme '${SCHEME}' verified in $PLIST"
 
       - name: Install CocoaPods dependencies
         run: |
           set -euo pipefail
+
           PROJECT_FILE="$(find ios -maxdepth 1 -name '*.xcodeproj' -print -quit)"
+
           if [ -z "$PROJECT_FILE" ]; then
             echo "::error::Expo prebuild did not generate an Xcode project."
             exit 1
           fi
-          (cd ios && pod install)
+
+          cd ios
+          pod install
 
       - name: Build and package unsigned IPA
         run: |
           set -euo pipefail
 
           PROJECT_FILE="$(find ios -maxdepth 1 -name '*.xcodeproj' -print -quit)"
+
           if [ -z "$PROJECT_FILE" ]; then
             echo "::error::No generated Xcode project was found."
             exit 1
@@ -73,30 +121,55 @@ jobs:
 
           PROJECT_NAME="$(basename "$PROJECT_FILE" .xcodeproj)"
           WORKSPACE="ios/${PROJECT_NAME}.xcworkspace"
+
           if [ ! -d "$WORKSPACE" ]; then
             echo "::error::CocoaPods did not generate the expected Xcode workspace: $WORKSPACE"
             exit 1
           fi
 
           SCHEME="$PROJECT_NAME"
+
+          echo "Project: $PROJECT_NAME"
+          echo "Workspace: $WORKSPACE"
+          echo "Scheme: $SCHEME"
+
           xcodebuild -list -json -workspace "$WORKSPACE" |
             node -e '
               let input = "";
+
               process.stdin.setEncoding("utf8");
-              process.stdin.on("data", chunk => input += chunk);
+
+              process.stdin.on("data", chunk => {
+                input += chunk;
+              });
+
               process.stdin.on("end", () => {
                 const config = JSON.parse(input);
-                const schemes = config.workspace?.schemes ?? config.project?.schemes ?? [];
+                const schemes =
+                  config.workspace?.schemes ??
+                  config.project?.schemes ??
+                  [];
+
                 const expected = process.argv[1];
+
                 if (!schemes.includes(expected)) {
-                  console.error(`Generated Xcode scheme "${expected}" was not found.`);
+                  console.error(
+                    `Generated Xcode scheme "${expected}" was not found.`
+                  );
                   process.exit(1);
                 }
+
+                console.log(
+                  `Generated Xcode scheme "${expected}" verified.`
+                );
               });
             ' "$SCHEME"
 
           DERIVED_DATA="$RUNNER_TEMP/LjxMoneyDerivedData"
           SOURCE_MAP_PATH="$RUNNER_TEMP/LjxMoney.main.jsbundle.map"
+
+          echo "Building Release IPA..."
+
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -116,21 +189,49 @@ jobs:
           fi
 
           APP_PATH="$DERIVED_DATA/Build/Products/Release-iphoneos/${PROJECT_NAME}.app"
-          if [ ! -d "$APP_PATH" ] || [ ! -f "$APP_PATH/Info.plist" ]; then
+
+          if [ ! -d "$APP_PATH" ]; then
             echo "::error::Xcode did not produce the expected iOS app bundle."
             exit 1
           fi
 
-          mkdir -p dist/ios/Payload
-          ditto "$APP_PATH" "dist/ios/Payload/${PROJECT_NAME}.app"
-          plutil -lint "dist/ios/Payload/${PROJECT_NAME}.app/Info.plist"
-          (cd dist/ios && /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload LjxMoney.ipa)
-
-          if ! unzip -tq dist/ios/LjxMoney.ipa >/dev/null ||
-            ! unzip -Z1 dist/ios/LjxMoney.ipa | grep -Eq '^Payload/[^/]+\.app/Info\.plist$'; then
-            echo "::error::The generated archive is not a valid iOS IPA."
+          if [ ! -f "$APP_PATH/Info.plist" ]; then
+            echo "::error::Generated iOS app is missing Info.plist."
             exit 1
           fi
+
+          mkdir -p dist/ios/Payload
+
+          ditto \
+            "$APP_PATH" \
+            "dist/ios/Payload/${PROJECT_NAME}.app"
+
+          plutil -lint \
+            "dist/ios/Payload/${PROJECT_NAME}.app/Info.plist"
+
+          (
+            cd dist/ios
+            /usr/bin/ditto \
+              -c -k \
+              --sequesterRsrc \
+              --keepParent \
+              Payload \
+              LjxMoney.ipa
+          )
+
+          if ! unzip -tq dist/ios/LjxMoney.ipa >/dev/null; then
+            echo "::error::Generated IPA failed ZIP integrity validation."
+            exit 1
+          fi
+
+          if ! unzip -Z1 dist/ios/LjxMoney.ipa |
+            grep -Eq '^Payload/[^/]+\.app/Info\.plist$'; then
+            echo "::error::Generated archive is missing the iOS app Info.plist."
+            exit 1
+          fi
+
+          echo "IPA successfully generated:"
+          ls -lh dist/ios/LjxMoney.ipa
 
       - name: Upload IPA for Sideloadly
         uses: actions/upload-artifact@v5
