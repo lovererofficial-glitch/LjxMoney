@@ -1,0 +1,111 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import {
+  createEmptySynced,
+  createEmptySyncMeta,
+  type SyncEntity,
+  type SyncMeta,
+  type SyncTombstone,
+} from './syncTypes.ts';
+
+const SYNC_META_KEY = 'ljxmoney-sync-meta';
+
+/** Single-writer queue so concurrent read-modify-write never loses updates. */
+let queue: Promise<unknown> = Promise.resolve();
+const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
+  const result = queue.then(task, task);
+  queue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+};
+
+const isEntity = (value: unknown): value is SyncEntity =>
+  value === 'wallets' ||
+  value === 'categories' ||
+  value === 'transactions' ||
+  value === 'budgets' ||
+  value === 'goals' ||
+  value === 'goalContributions';
+
+const sanitize = (value: unknown): SyncMeta => {
+  const fallback = createEmptySyncMeta();
+  if (typeof value !== 'object' || value === null) {
+    return fallback;
+  }
+  const raw = value as Partial<SyncMeta>;
+  if (raw.version !== 1) {
+    return fallback;
+  }
+  const synced = createEmptySynced();
+  if (typeof raw.synced === 'object' && raw.synced !== null) {
+    for (const entity of Object.keys(synced) as SyncEntity[]) {
+      const bucket = (raw.synced as Record<string, unknown>)[entity];
+      if (typeof bucket === 'object' && bucket !== null) {
+        for (const [id, updatedAt] of Object.entries(bucket)) {
+          if (typeof updatedAt === 'string') {
+            synced[entity][id] = updatedAt;
+          }
+        }
+      }
+    }
+  }
+  const tombstones: SyncTombstone[] = Array.isArray(raw.tombstones)
+    ? raw.tombstones.filter(
+        (item): item is SyncTombstone =>
+          typeof item === 'object' &&
+          item !== null &&
+          isEntity((item as SyncTombstone).entity) &&
+          typeof (item as SyncTombstone).id === 'string' &&
+          typeof (item as SyncTombstone).deletedAt === 'string',
+      )
+    : [];
+  return {
+    version: 1,
+    ownerUserId: typeof raw.ownerUserId === 'string' ? raw.ownerUserId : null,
+    lastSyncedAt: typeof raw.lastSyncedAt === 'string' ? raw.lastSyncedAt : null,
+    synced,
+    tombstones,
+  };
+};
+
+export const loadSyncMeta = (): Promise<SyncMeta> =>
+  enqueue(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(SYNC_META_KEY);
+      if (!raw) {
+        return createEmptySyncMeta();
+      }
+      return sanitize(JSON.parse(raw));
+    } catch (error) {
+      // Corrupt metadata must never brick sync: a fresh meta only causes
+      // idempotent re-upserts; local data is untouched.
+      console.error('Sync metadata could not be read; starting fresh.', error);
+      return createEmptySyncMeta();
+    }
+  });
+
+export const saveSyncMeta = (meta: SyncMeta): Promise<void> =>
+  enqueue(async () => {
+    try {
+      await AsyncStorage.setItem(SYNC_META_KEY, JSON.stringify(meta));
+    } catch (error) {
+      console.error('Sync metadata could not be saved.', error);
+    }
+  });
+
+/** Atomic read-modify-write used by the deletion listener. */
+export const updateSyncMeta = (mutate: (meta: SyncMeta) => SyncMeta | null): Promise<void> =>
+  enqueue(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(SYNC_META_KEY);
+      const current = raw ? sanitize(JSON.parse(raw)) : createEmptySyncMeta();
+      const next = mutate(current);
+      if (next) {
+        await AsyncStorage.setItem(SYNC_META_KEY, JSON.stringify(next));
+      }
+    } catch (error) {
+      console.error('Sync metadata could not be updated.', error);
+    }
+  });

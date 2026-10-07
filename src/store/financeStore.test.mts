@@ -4,7 +4,7 @@ import type { StateStorage } from 'zustand/middleware';
 
 import { calculateBudgetSummary, calculateGoalSummary, calculateWalletBalance } from '../features/finance/financeEngine.ts';
 import type { Budget, GoalContribution, SavingsGoal, Transaction, Wallet } from '../features/finance/models.ts';
-import { createFinanceStore } from './financeStoreCore.ts';
+import { createFinanceStore, registerSyncDeletionListener } from './financeStoreCore.ts';
 
 const createMemoryStorage = (): StateStorage => {
   const values = new Map<string, string>();
@@ -162,4 +162,49 @@ test('budget and goal actions persist CRUD, archive, and contribution history ac
   assert.ok(finalStore.getState().budgets[0]?.archivedAt);
   assert.equal(finalStore.getState().goalContributions.length, 0);
   assert.equal(finalStore.getState().transactions.length, 1);
+});
+
+test('applySyncSnapshot adopts cloud data, recalculates balances, and no-ops when unchanged', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  store.getState().addTransaction(makeTransaction('local', 'expense', 100, '2026-10-01'));
+
+  const snapshot = {
+    wallets: store.getState().wallets,
+    categories: store.getState().categories,
+    transactions: [makeTransaction('cloud', 'income', 500, '2026-10-02')],
+    budgets: [],
+    goals: [],
+    goalContributions: [],
+    streak: store.getState().streak,
+  };
+  store.getState().applySyncSnapshot(snapshot);
+  assert.deepEqual(
+    store.getState().transactions.map((item) => item.id),
+    ['cloud'],
+  );
+  const expectedClosing =
+    store.getState().wallets.reduce((total, item) => total + item.initialBalance, 0) + 500;
+  assert.equal(store.getState().balances.at(-1)?.closingBalance, expectedClosing);
+
+  // Re-applying identical content must be a no-op (no echo loop).
+  const before = store.getState().transactions;
+  store.getState().applySyncSnapshot({ ...snapshot, transactions: [...snapshot.transactions] });
+  assert.equal(store.getState().transactions, before);
+});
+
+test('hard deletions notify sync listeners only for the removed ids', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  store.getState().addTransaction(makeTransaction('txn-a', 'expense', 100, '2026-10-01'));
+  store.getState().addTransaction(makeTransaction('txn-b', 'expense', 200, '2026-10-01'));
+
+  const seen: string[] = [];
+  const unsubscribe = registerSyncDeletionListener((entity, id) => {
+    seen.push(`${entity}:${id}`);
+  });
+  store.getState().deleteTransaction('txn-a');
+  unsubscribe();
+  store.getState().deleteTransaction('txn-b');
+
+  assert.deepEqual(seen, ['transactions:txn-a']);
+  assert.equal(store.getState().transactions.length, 0);
 });

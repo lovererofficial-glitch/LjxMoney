@@ -31,6 +31,34 @@ import type {
   Transaction,
   Wallet,
 } from '../features/finance/models';
+import type { SyncSnapshot } from '../sync/syncTypes';
+
+export type SyncDeletionListener = (entity: 'transactions' | 'goalContributions', id: string) => void;
+
+const syncDeletionListeners = new Set<SyncDeletionListener>();
+
+let applyingSyncSnapshot = false;
+
+/** True while applySyncSnapshot writes; lets sync runtime skip re-scheduling. */
+export const isApplyingSyncSnapshot = (): boolean => applyingSyncSnapshot;
+
+/** Sync runtime observes hard deletions so cloud rows are removed too. */
+export const registerSyncDeletionListener = (listener: SyncDeletionListener): (() => void) => {
+  syncDeletionListeners.add(listener);
+  return () => {
+    syncDeletionListeners.delete(listener);
+  };
+};
+
+const notifySyncDeletion = (entity: 'transactions' | 'goalContributions', id: string) => {
+  for (const listener of syncDeletionListeners) {
+    try {
+      listener(entity, id);
+    } catch (error) {
+      console.error('Sync deletion listener failed.', error);
+    }
+  }
+};
 
 const emptyStreak: StreakState = {
   completionDates: [],
@@ -69,6 +97,8 @@ interface FinanceState {
   deleteGoalContribution: (contributionId: string) => void;
   checkToday: (date?: string) => void;
   setHydrationResult: (error: unknown) => void;
+  /** Replace state with a reconciled cloud snapshot (no-op when unchanged). */
+  applySyncSnapshot: (snapshot: SyncSnapshot) => void;
 }
 
 const isValidTransactionDate = (date: string) => {
@@ -230,6 +260,7 @@ export const createFinanceStore = (storage: StateStorage) =>
           balances: calculateBalances(transactions, state.wallets),
           streak: syncStreakWithTransactions(state.streak, transactions),
         });
+        notifySyncDeletion('transactions', transactionId);
       },
       addWallet: (wallet) => {
         const state = get();
@@ -445,12 +476,46 @@ export const createFinanceStore = (storage: StateStorage) =>
         set({
           goalContributions: state.goalContributions.filter((item) => item.id !== contributionId),
         });
+        notifySyncDeletion('goalContributions', contributionId);
       },
       checkToday: (date = format(new Date(), 'yyyy-MM-dd')) => {
         if (!isValidTransactionDate(date)) {
           throw new Error('Choose a valid check-in date.');
         }
         set((state) => ({ streak: addStreakCompletion(state.streak, date) }));
+      },
+      applySyncSnapshot: (snapshot) => {
+        const state = get();
+        const nextStreak = syncStreakWithTransactions(snapshot.streak, snapshot.transactions);
+        const unchanged =
+          state.transactions === snapshot.transactions ||
+          (JSON.stringify(state.transactions) === JSON.stringify(snapshot.transactions) &&
+            JSON.stringify(state.categories) === JSON.stringify(snapshot.categories) &&
+            JSON.stringify(state.wallets) === JSON.stringify(snapshot.wallets) &&
+            JSON.stringify(state.budgets) === JSON.stringify(snapshot.budgets) &&
+            JSON.stringify(state.goals) === JSON.stringify(snapshot.goals) &&
+            JSON.stringify(state.goalContributions) === JSON.stringify(snapshot.goalContributions) &&
+            JSON.stringify(state.streak) === JSON.stringify(nextStreak));
+        if (unchanged) {
+          return;
+        }
+        // Throws on invalid data: the sync cycle must abort before persisting
+        // sync markers, otherwise un-applied cloud rows would be skipped.
+        applyingSyncSnapshot = true;
+        try {
+          set({
+            transactions: snapshot.transactions,
+            categories: snapshot.categories,
+            wallets: snapshot.wallets,
+            budgets: snapshot.budgets,
+            goals: snapshot.goals,
+            goalContributions: snapshot.goalContributions,
+            streak: nextStreak,
+            balances: calculateBalances(snapshot.transactions, snapshot.wallets),
+          });
+        } finally {
+          applyingSyncSnapshot = false;
+        }
       },
       setHydrationResult: (error) => {
         if (error) {
