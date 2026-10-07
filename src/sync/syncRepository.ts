@@ -181,10 +181,29 @@ const TABLES: Record<SyncEntity, string> = {
   goalContributions: 'goal_contributions',
 };
 
-const throwOnPostgrestError = (error: { message: string } | null): void => {
-  if (error) {
-    throw new Error(error.message);
+const throwOnPostgrestError = (
+  error: {
+    message: string;
+    code?: string;
+    details?: string;
+    hint?: string;
+  } | null,
+  context: string,
+): void => {
+  if (!error) {
+    return;
   }
+
+  const parts = [
+    `[${context}] ${error.message}`,
+    error.code ? `code=${error.code}` : '',
+    error.details ? `details=${error.details}` : '',
+    error.hint ? `hint=${error.hint}` : '',
+  ].filter(Boolean);
+
+  console.error('[LjxMoney Sync]', parts.join(' | '));
+
+  throw new Error(parts.join(' | '));
 };
 
 export const createSupabaseSyncRepository = (
@@ -202,13 +221,13 @@ export const createSupabaseSyncRepository = (
         client.from('goal_contributions').select('*').eq('user_id', userId),
         client.from('streaks').select('*').eq('user_id', userId).maybeSingle(),
       ]);
-    throwOnPostgrestError(wallets.error);
-    throwOnPostgrestError(categories.error);
-    throwOnPostgrestError(transactions.error);
-    throwOnPostgrestError(budgets.error);
-    throwOnPostgrestError(goals.error);
-    throwOnPostgrestError(contributions.error);
-    throwOnPostgrestError(streak.error);
+    throwOnPostgrestError(wallets.error, 'wallets');
+    throwOnPostgrestError(categories.error, 'categories');
+    throwOnPostgrestError(transactions.error, 'transactions');
+    throwOnPostgrestError(budgets.error, 'budgets');
+    throwOnPostgrestError(goals.error, 'savings_goals');
+    throwOnPostgrestError(contributions.error, 'goal_contributions');
+    throwOnPostgrestError(streak.error, 'streaks');
     return {
       wallets: (wallets.data ?? []).map(walletFromRow),
       categories: (categories.data ?? []).map(categoryFromRow),
@@ -239,14 +258,14 @@ export const createSupabaseSyncRepository = (
     const { error } = await client
       .from(TABLES[entity])
       .upsert(payload, { onConflict: 'user_id,id' });
-    throwOnPostgrestError(error);
+    throwOnPostgrestError(error, 'transactions');
   },
   remove: async (entity, ids) => {
     if (!ids.length) {
       return;
     }
     const { error } = await client.from(TABLES[entity]).delete().eq('user_id', userId).in('id', ids);
-    throwOnPostgrestError(error);
+    throwOnPostgrestError(error, 'streaks');
   },
   upsertStreak: async (streak: StreakState) => {
     const { error } = await client.from('streaks').upsert(
@@ -259,6 +278,6 @@ export const createSupabaseSyncRepository = (
       },
       { onConflict: 'user_id' },
     );
-    throwOnPostgrestError(error);
+    throwOnPostgrestError(error, '...');
   },
 });
