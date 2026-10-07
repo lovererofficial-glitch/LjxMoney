@@ -20,6 +20,8 @@ const result = spawnSync(
     'src/lib/serializedStorage.test.mts',
     'src/store/financeStore.test.mts',
     'src/lib/formatters.test.mts',
+    'src/auth/authStore.test.mts',
+    'src/sync/syncEngine.test.mts',
   ],
   { stdio: 'inherit' },
 );
