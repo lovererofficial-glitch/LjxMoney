@@ -44,6 +44,13 @@ test('translation dictionaries provide both languages and interpolate variables'
   assert.throws(() => translate('en', 'common.days'), /Missing "count" interpolation/);
 });
 
+test('sync error labels are localized in both languages', () => {
+  assert.equal(translate('vi', 'sync.details'), 'Chi tiết:');
+  assert.equal(translate('vi', 'sync.retry'), 'Thử lại');
+  assert.equal(translate('en', 'sync.details'), 'Details:');
+  assert.equal(translate('en', 'sync.retry'), 'Retry');
+});
+
 test('currency, numeric input, and date presentation follow the selected language', () => {
   assert.equal(formatLocalizedCurrency(1_250_000, 'vi').replace(/\s/g, ''), '1.250.000₫');
   assert.equal(formatLocalizedCurrency(1_250_000, 'en').replace(/\s/g, ''), '₫1,250,000');

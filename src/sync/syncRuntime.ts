@@ -46,6 +46,20 @@ const scheduleSync = (delay: number) => {
   }, delay);
 };
 
+/**
+ * Keep the surfaced detail debuggable but free of credentials: Supabase
+ * errors carry message/code/details/hint (already logged with context in
+ * the repository layer). Session tokens are never part of that shape.
+ */
+const MAX_DETAIL_LENGTH = 500;
+
+const toErrorDetail = (error: unknown): string => {
+  const raw = error instanceof Error ? error.message : String(error);
+  const cleaned = raw.replace(/\s+/g, ' ').trim();
+  const safe = cleaned.length > MAX_DETAIL_LENGTH ? `${cleaned.slice(0, MAX_DETAIL_LENGTH)}…` : cleaned;
+  return safe || 'Unknown sync error';
+};
+
 const runCycle = async () => {
   const status = useSyncStatusStore.getState();
   const auth = useAuthStore.getState();
@@ -85,10 +99,12 @@ const runCycle = async () => {
     }
     const meta = await loadSyncMeta();
     status.setPhase('synced');
+    status.setErrorDetail(null);
     status.setLastSyncedAt(meta.lastSyncedAt);
   } catch (error) {
     const kind = classifySyncError(error);
     status.setPhase(kind === 'offline' ? 'offline' : 'failed');
+    status.setErrorDetail(kind === 'failed' ? toErrorDetail(error) : null);
     console.error('Sync cycle failed.', error);
     scheduleSync(RETRY_MS);
   }

@@ -239,6 +239,9 @@ export const createSupabaseSyncRepository = (
     };
   },
   upsert: async (entity, rows) => {
+    if (!rows.length) {
+      return;
+    }
     const payload = (rows as unknown[]).map((row) => {
       switch (entity) {
         case 'wallets':
@@ -258,14 +261,14 @@ export const createSupabaseSyncRepository = (
     const { error } = await client
       .from(TABLES[entity])
       .upsert(payload, { onConflict: 'user_id,id' });
-    throwOnPostgrestError(error, 'transactions');
+    throwOnPostgrestError(error, TABLES[entity]);
   },
   remove: async (entity, ids) => {
     if (!ids.length) {
       return;
     }
     const { error } = await client.from(TABLES[entity]).delete().eq('user_id', userId).in('id', ids);
-    throwOnPostgrestError(error, 'streaks');
+    throwOnPostgrestError(error, TABLES[entity]);
   },
   upsertStreak: async (streak: StreakState) => {
     const { error } = await client.from('streaks').upsert(
@@ -278,6 +281,6 @@ export const createSupabaseSyncRepository = (
       },
       { onConflict: 'user_id' },
     );
-    throwOnPostgrestError(error, '...');
+    throwOnPostgrestError(error, 'streaks');
   },
 });

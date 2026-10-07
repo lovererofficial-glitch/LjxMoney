@@ -125,6 +125,7 @@ export default function AccountScreen() {
   const signOut = useAuthStore((state) => state.signOut);
   const syncPhase = useSyncStatusStore((state) => state.phase);
   const lastSyncedAt = useSyncStatusStore((state) => state.lastSyncedAt);
+  const syncErrorDetail = useSyncStatusStore((state) => state.errorDetail);
 
   const handleSignOut = async () => {
     await signOut();
@@ -209,6 +210,11 @@ export default function AccountScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t('sync.cloud')}</Text>
             <Text style={styles.syncStatus}>{t(phaseKeys[syncPhase])}</Text>
+            {syncPhase === 'failed' && syncErrorDetail ? (
+              <Text style={styles.error}>
+                {t('sync.details')} {syncErrorDetail}
+              </Text>
+            ) : null}
             {lastSyncedAt ? (
               <Text style={styles.cardHint}>
                 {t('sync.lastSynced', { time: format(new Date(lastSyncedAt), 'HH:mm dd/MM/yyyy') })}
@@ -220,7 +226,9 @@ export default function AccountScreen() {
               onPress={requestSyncNow}
               style={[styles.secondaryButton, syncPhase === 'syncing' && styles.buttonDisabled]}
             >
-              <Text style={styles.secondaryLabel}>{t('sync.syncNow')}</Text>
+              <Text style={styles.secondaryLabel}>
+                {t(syncPhase === 'failed' ? 'sync.retry' : 'sync.syncNow')}
+              </Text>
             </Pressable>
           </View>
 

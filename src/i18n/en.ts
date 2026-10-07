@@ -422,6 +422,8 @@ const en = {
     statusSignedOut: 'Sign in to back up your data',
     statusBlocked: 'Local data on this device belongs to another account',
     syncNow: 'Sync now',
+    retry: 'Retry',
+    details: 'Details:',
     lastSynced: 'Last sync: {time}',
     syncSuccess: 'Data synced.',
   },

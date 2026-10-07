@@ -37,27 +37,27 @@ export const defaultWallets: Wallet[] = [
 ];
 
 export const legacyWallets: Wallet[] = [
-  { id: 'card', name: 'Card', color: '#FFB454', type: 'card', icon: 'creditcard', initialBalance: 0 },
+  { id: 'card', name: 'Card', color: '#FFB454', type: 'card', icon: 'creditcard', initialBalance: 0, archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
 ];
 
 export const defaultCategories: Category[] = [
-  { id: 'food', name: 'Ăn uống', color: '#FFB454', type: 'expense', icon: 'utensils', archivedAt: null },
-  { id: 'coffee', name: 'Cà phê', color: '#D9A066', type: 'expense', icon: 'coffee', archivedAt: null },
-  { id: 'transport', name: 'Di chuyển', color: '#68E1FD', type: 'expense', icon: 'car', archivedAt: null },
-  { id: 'entertainment', name: 'Giải trí', color: '#A78BFA', type: 'expense', icon: 'film', archivedAt: null },
-  { id: 'shopping', name: 'Mua sắm', color: '#F472B6', type: 'expense', icon: 'shopping-bag', archivedAt: null },
-  { id: 'housing', name: 'Nhà ở', color: '#FF6B6B', type: 'expense', icon: 'home', archivedAt: null },
-  { id: 'health', name: 'Sức khỏe', color: '#34D399', type: 'expense', icon: 'heart-pulse', archivedAt: null },
-  { id: 'education', name: 'Học tập', color: '#60A5FA', type: 'expense', icon: 'book', archivedAt: null },
-  { id: 'personal', name: 'Cá nhân', color: '#F9A8D4', type: 'expense', icon: 'sparkles', archivedAt: null },
-  { id: 'gift', name: 'Quà tặng', color: '#FCD34D', type: 'expense', icon: 'gift', archivedAt: null },
-  { id: 'other-expense', name: 'Khác', color: '#8EA0B9', type: 'expense', icon: 'dots-horizontal', archivedAt: null },
-  { id: 'salary', name: 'Lương', color: '#3DD598', type: 'income', icon: 'currency-usd', archivedAt: null },
-  { id: 'freelance', name: 'Freelance', color: '#68E1FD', type: 'income', icon: 'briefcase', archivedAt: null },
-  { id: 'bonus', name: 'Thưởng', color: '#F472B6', type: 'income', icon: 'star', archivedAt: null },
-  { id: 'other-income', name: 'Khác', color: '#A78BFA', type: 'income', icon: 'cash', archivedAt: null },
+  { id: 'food', name: 'Ăn uống', color: '#FFB454', type: 'expense', icon: 'utensils', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'coffee', name: 'Cà phê', color: '#D9A066', type: 'expense', icon: 'coffee', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'transport', name: 'Di chuyển', color: '#68E1FD', type: 'expense', icon: 'car', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'entertainment', name: 'Giải trí', color: '#A78BFA', type: 'expense', icon: 'film', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'shopping', name: 'Mua sắm', color: '#F472B6', type: 'expense', icon: 'shopping-bag', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'housing', name: 'Nhà ở', color: '#FF6B6B', type: 'expense', icon: 'home', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'health', name: 'Sức khỏe', color: '#34D399', type: 'expense', icon: 'heart-pulse', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'education', name: 'Học tập', color: '#60A5FA', type: 'expense', icon: 'book', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'personal', name: 'Cá nhân', color: '#F9A8D4', type: 'expense', icon: 'sparkles', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'gift', name: 'Quà tặng', color: '#FCD34D', type: 'expense', icon: 'gift', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'other-expense', name: 'Khác', color: '#8EA0B9', type: 'expense', icon: 'dots-horizontal', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'salary', name: 'Lương', color: '#3DD598', type: 'income', icon: 'currency-usd', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'freelance', name: 'Freelance', color: '#68E1FD', type: 'income', icon: 'briefcase', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'bonus', name: 'Thưởng', color: '#F472B6', type: 'income', icon: 'star', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'other-income', name: 'Khác', color: '#A78BFA', type: 'income', icon: 'cash', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
 ];
 
 export const legacyCategories: Category[] = [
-  { id: 'old-other-expense', name: 'Khác', color: '#8EA0B9', type: 'expense', icon: 'dots-horizontal', archivedAt: null },
+  { id: 'old-other-expense', name: 'Khác', color: '#8EA0B9', type: 'expense', icon: 'dots-horizontal', archivedAt: null, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
 ];

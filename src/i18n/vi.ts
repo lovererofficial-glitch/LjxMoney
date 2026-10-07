@@ -425,6 +425,8 @@ const vi: TranslationShape<typeof en> = {
     statusSignedOut: 'Đăng nhập để sao lưu dữ liệu',
     statusBlocked: 'Dữ liệu trên thiết bị thuộc tài khoản khác',
     syncNow: 'Đồng bộ ngay',
+    retry: 'Thử lại',
+    details: 'Chi tiết:',
     lastSynced: 'Lần đồng bộ cuối: {time}',
     syncSuccess: 'Đã đồng bộ dữ liệu.',
   },
