@@ -154,3 +154,24 @@ export const translateFinanceError = (
   }
   return t(key);
 };
+
+const authErrorKeys: Record<string, TranslationKey> = {
+  'not-configured': 'auth.errorNotConfigured',
+  'invalid-credentials': 'auth.errorInvalidCredentials',
+  'email-not-confirmed': 'auth.errorEmailNotConfirmed',
+  'email-exists': 'auth.errorEmailExists',
+  'weak-password': 'auth.errorWeakPassword',
+  network: 'auth.errorNetwork',
+  'session-expired': 'auth.sessionExpired',
+  unknown: 'auth.errorUnknown',
+};
+
+export const translateAuthError = (
+  code: string | null,
+  t: (key: TranslationKey, params?: TranslationParams) => string,
+) => {
+  if (!code) {
+    return '';
+  }
+  return t(authErrorKeys[code] ?? 'auth.errorUnknown');
+};

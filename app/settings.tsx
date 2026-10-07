@@ -61,6 +61,17 @@ export default function SettingsScreen() {
         ))}
       </View>
       {hydrationError ? <Text accessibilityRole="alert" style={styles.error}>{t('settings.preferenceLoadError')}</Text> : null}
+      <View style={[styles.card, styles.accountCard]}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/account')}>
+          <View style={styles.rowHeading}>
+            <View>
+              <Text style={styles.rowTitle}>{t('settings.account')}</Text>
+              <Text style={styles.rowHint}>{t('settings.accountHint')}</Text>
+            </View>
+            <Text style={styles.currentLanguage}>›</Text>
+          </View>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -91,4 +102,5 @@ const styles = StyleSheet.create({
   radioSelected: { borderColor: colors.accent, backgroundColor: colors.accent },
   checkmark: { color: colors.background, fontSize: 15, fontWeight: '900' },
   error: { color: colors.expense, fontSize: 13, lineHeight: 19, marginTop: spacing.md },
+  accountCard: { marginTop: spacing.md },
 });
