@@ -99,6 +99,11 @@ interface FinanceState {
   setHydrationResult: (error: unknown) => void;
   /** Replace state with a reconciled cloud snapshot (no-op when unchanged). */
   applySyncSnapshot: (snapshot: SyncSnapshot) => void;
+  /**
+   * Drop the active owner's rows from memory for account switching/logout.
+   * Persisted per-owner data is untouched; only the live view resets.
+   */
+  resetForOwnerSwitch: () => void;
 }
 
 const isValidTransactionDate = (date: string) => {
@@ -516,6 +521,19 @@ export const createFinanceStore = (storage: StateStorage) =>
         } finally {
           applyingSyncSnapshot = false;
         }
+      },
+      resetForOwnerSwitch: () => {
+        set({
+          transactions: [],
+          balances: [],
+          categories: defaultCategories,
+          wallets: defaultWallets,
+          budgets: [],
+          goals: [],
+          goalContributions: [],
+          streak: { ...emptyStreak, completionDates: [], manualCompletionDates: [] },
+          hydrationError: null,
+        });
       },
       setHydrationResult: (error) => {
         if (error) {

@@ -1,6 +1,9 @@
 import { useAuthStore } from '../auth/authStore.ts';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase.ts';
-import { registerSyncDeletionListener, useFinanceStore } from '../store/financeStore.ts';
+import {
+  registerSyncDeletionListener,
+  useFinanceStore,
+} from '../store/financeStore.ts';
 import { isApplyingSyncSnapshot } from '../store/financeStoreCore.ts';
 import { loadSyncMeta, saveSyncMeta, updateSyncMeta } from './syncMetaStorage.ts';
 import { runSyncCycle } from './syncEngine.ts';
@@ -16,6 +19,12 @@ let started = false;
 /** All sync work is serialized here: cycles and tombstone writes never race. */
 let queue: Promise<unknown> = Promise.resolve();
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Monotonic sync generation. Every login/logout bumps it; a cycle captured
+ * under user A that finishes after B logs in must not apply A's snapshot
+ * (or A's meta) into B's state.
+ */
+let syncGeneration = 0;
 
 const enqueue = (task: () => Promise<void>) => {
   queue = queue.then(task, task).catch((error) => {
@@ -40,9 +49,10 @@ const scheduleSync = (delay: number) => {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
   }
+  const generation = syncGeneration;
   debounceTimer = setTimeout(() => {
     debounceTimer = null;
-    enqueue(runCycle);
+    enqueue(() => runCycle(generation));
   }, delay);
 };
 
@@ -60,10 +70,12 @@ const toErrorDetail = (error: unknown): string => {
   return safe || 'Unknown sync error';
 };
 
-const runCycle = async () => {
+const runCycle = async (generation: number) => {
   const status = useSyncStatusStore.getState();
   const auth = useAuthStore.getState();
   const userId = auth.user?.id ?? null;
+
+  const isStale = () => generation !== syncGeneration;
 
   if (auth.status !== 'authenticated' || !userId) {
     status.setPhase('signed-out');
@@ -88,20 +100,39 @@ const runCycle = async () => {
     const result = await runSyncCycle({
       repo: createSupabaseSyncRepository(client, userId),
       getUserId: () => userId,
-      loadMeta: loadSyncMeta,
-      saveMeta: saveSyncMeta,
+      loadMeta: () => loadSyncMeta(userId),
+      saveMeta: (meta) => saveSyncMeta(meta, userId),
       getSnapshot: readSnapshot,
-      applySnapshot: (snapshot) => useFinanceStore.getState().applySyncSnapshot(snapshot),
+      applySnapshot: (snapshot) => {
+        // Race guard: A's in-flight cycle must never write into B's memory.
+        if (isStale()) {
+          return;
+        }
+        const currentUserId = useAuthStore.getState().user?.id ?? null;
+        if (currentUserId !== userId) {
+          return;
+        }
+        useFinanceStore.getState().applySyncSnapshot(snapshot);
+      },
     });
+    if (isStale()) {
+      return;
+    }
     if (result === 'blocked') {
       status.setPhase('blocked');
       return;
     }
-    const meta = await loadSyncMeta();
+    const meta = await loadSyncMeta(userId);
+    if (isStale()) {
+      return;
+    }
     status.setPhase('synced');
     status.setErrorDetail(null);
     status.setLastSyncedAt(meta.lastSyncedAt);
   } catch (error) {
+    if (isStale()) {
+      return;
+    }
     const kind = classifySyncError(error);
     status.setPhase(kind === 'offline' ? 'offline' : 'failed');
     status.setErrorDetail(kind === 'failed' ? toErrorDetail(error) : null);
@@ -111,11 +142,13 @@ const runCycle = async () => {
 };
 
 const recordDeletion = (entity: SyncEntity, id: string) => {
+  const userId = useAuthStore.getState().user?.id ?? null;
+  if (!userId) {
+    return;
+  }
   enqueue(async () => {
-    const userId = useAuthStore.getState().user?.id ?? null;
-    if (!userId) {
-      return;
-    }
+    // Owner is captured at delete time: A's offline delete must not write a
+    // tombstone into B's metadata if the account switches before the flush.
     await updateSyncMeta((meta) => {
       // Only the owning account records deletions; before the first sync
       // (owner unset) the row never reached the cloud, so no tombstone is
@@ -130,7 +163,7 @@ const recordDeletion = (entity: SyncEntity, id: string) => {
         ...meta,
         tombstones: [...meta.tombstones, { entity, id, deletedAt: new Date().toISOString() }],
       };
-    });
+    }, userId);
   });
   scheduleSync(DELETION_SYNC_DELAY_MS);
 };
@@ -145,11 +178,29 @@ export const startSyncRuntime = () => {
     void useAuthStore.getState().initialize();
 
     useAuthStore.subscribe((state, previous) => {
-      if (state.status === 'authenticated' && previous.status !== 'authenticated') {
+      const wasAuthenticated = previous.status === 'authenticated';
+      const isAuthenticated = state.status === 'authenticated';
+      const userChanged = state.user?.id !== previous.user?.id;
+      if (isAuthenticated && (!wasAuthenticated || userChanged)) {
+        // New account (or re-login): stale cycles/retries from the previous
+        // owner are invalidated; the fresh generation re-syncs for this user.
+        syncGeneration += 1;
+        const status = useSyncStatusStore.getState();
+        status.setErrorDetail(null);
+        status.setLastSyncedAt(null);
         scheduleSync(0);
       }
-      if (state.status !== 'authenticated') {
-        useSyncStatusStore.getState().setPhase('signed-out');
+      if (!isAuthenticated) {
+        // Logout: invalidate anything in flight and drop the signed-out view.
+        syncGeneration += 1;
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+        }
+        const status = useSyncStatusStore.getState();
+        status.setErrorDetail(null);
+        status.setLastSyncedAt(null);
+        status.setPhase('signed-out');
       }
     });
 
@@ -170,5 +221,6 @@ export const startSyncRuntime = () => {
 };
 
 export const requestSyncNow = () => {
-  enqueue(runCycle);
+  const generation = syncGeneration;
+  enqueue(() => runCycle(generation));
 };

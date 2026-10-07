@@ -8,7 +8,13 @@ import {
   type SyncTombstone,
 } from './syncTypes.ts';
 
-const SYNC_META_KEY = 'ljxmoney-sync-meta';
+const LEGACY_SYNC_META_KEY = 'ljxmoney-sync-meta';
+const SYNC_META_KEY_PREFIX = 'ljxmoney-sync-meta:';
+const GUEST_SYNC_OWNER = 'guest';
+
+/** Owner-scoped sync metadata key: each account tracks its own cloud markers. */
+export const syncMetaKeyForOwner = (ownerId: string | null): string =>
+  `${SYNC_META_KEY_PREFIX}${ownerId ?? GUEST_SYNC_OWNER}`;
 
 /** Single-writer queue so concurrent read-modify-write never loses updates. */
 let queue: Promise<unknown> = Promise.resolve();
@@ -70,10 +76,20 @@ const sanitize = (value: unknown): SyncMeta => {
   };
 };
 
-export const loadSyncMeta = (): Promise<SyncMeta> =>
+export const loadSyncMeta = (ownerId: string | null = null): Promise<SyncMeta> =>
   enqueue(async () => {
     try {
-      const raw = await AsyncStorage.getItem(SYNC_META_KEY);
+      const raw = await AsyncStorage.getItem(syncMetaKeyForOwner(ownerId));
+      if (!raw && ownerId) {
+        // First login after the guest era: inherit the shared markers once so
+        // the first upload does not duplicate rows already pushed as guest.
+        const legacyRaw = await AsyncStorage.getItem(LEGACY_SYNC_META_KEY);
+        if (legacyRaw) {
+          await AsyncStorage.setItem(syncMetaKeyForOwner(ownerId), legacyRaw);
+          await AsyncStorage.removeItem(LEGACY_SYNC_META_KEY);
+          return sanitize(JSON.parse(legacyRaw));
+        }
+      }
       if (!raw) {
         return createEmptySyncMeta();
       }
@@ -86,24 +102,27 @@ export const loadSyncMeta = (): Promise<SyncMeta> =>
     }
   });
 
-export const saveSyncMeta = (meta: SyncMeta): Promise<void> =>
+export const saveSyncMeta = (meta: SyncMeta, ownerId: string | null = null): Promise<void> =>
   enqueue(async () => {
     try {
-      await AsyncStorage.setItem(SYNC_META_KEY, JSON.stringify(meta));
+      await AsyncStorage.setItem(syncMetaKeyForOwner(ownerId), JSON.stringify(meta));
     } catch (error) {
       console.error('Sync metadata could not be saved.', error);
     }
   });
 
 /** Atomic read-modify-write used by the deletion listener. */
-export const updateSyncMeta = (mutate: (meta: SyncMeta) => SyncMeta | null): Promise<void> =>
+export const updateSyncMeta = (
+  mutate: (meta: SyncMeta) => SyncMeta | null,
+  ownerId: string | null = null,
+): Promise<void> =>
   enqueue(async () => {
     try {
-      const raw = await AsyncStorage.getItem(SYNC_META_KEY);
+      const raw = await AsyncStorage.getItem(syncMetaKeyForOwner(ownerId));
       const current = raw ? sanitize(JSON.parse(raw)) : createEmptySyncMeta();
       const next = mutate(current);
       if (next) {
-        await AsyncStorage.setItem(SYNC_META_KEY, JSON.stringify(next));
+        await AsyncStorage.setItem(syncMetaKeyForOwner(ownerId), JSON.stringify(next));
       }
     } catch (error) {
       console.error('Sync metadata could not be updated.', error);

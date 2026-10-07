@@ -19,6 +19,7 @@ const result = spawnSync(
     'src/i18n/i18n.test.mts',
     'src/lib/serializedStorage.test.mts',
     'src/store/financeStore.test.mts',
+    'src/store/financeIsolation.test.mts',
     'src/lib/formatters.test.mts',
     'src/auth/authStore.test.mts',
     'src/sync/syncEngine.test.mts',
