@@ -33,8 +33,23 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Validate app scheme (guards against startup deep link crash)
+        run: |
+          node -e "const {expo}=require('./app.json');if(!expo.scheme){console.error('::error::expo.scheme is missing from app.json. Standalone builds crash at startup: Cannot make a deep link into a standalone app with no custom scheme defined.');process.exit(1);}console.log('expo.scheme =',expo.scheme);"
+
       - name: Generate iOS project
         run: npx expo prebuild --platform ios --no-install
+
+      - name: Verify generated URL scheme in Info.plist
+        run: |
+          set -euo pipefail
+          SCHEME="$(node -p "require('./app.json').expo.scheme")"
+          PLIST="$(find ios -maxdepth 2 -name Info.plist -not -path '*Tests*' -print -quit)"
+          if [ -z "$PLIST" ] || ! grep -q "<string>${SCHEME}</string>" "$PLIST"; then
+            echo "::error::Generated Info.plist does not contain the URL scheme '${SCHEME}'."
+            exit 1
+          fi
+          echo "Info.plist URL scheme '${SCHEME}' verified in $PLIST"
 
       - name: Install CocoaPods dependencies
         run: |

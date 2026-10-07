@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# crash symbolication artifacts
+sourcemap-artifact.zip
+sourcemap-artifact/
