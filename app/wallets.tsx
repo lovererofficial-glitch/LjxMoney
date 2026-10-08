@@ -43,10 +43,6 @@ export default function WalletsScreen() {
     );
   }
 
-  const openEdit = (wallet: (typeof wallets)[number]) => {
-    router.push(`/wallets/new?id=${wallet.id}`);
-  };
-
   const archive = (wallet: (typeof wallets)[number]) => {
     Alert.alert(t('wallet.archiveConfirmation'), t('wallet.archiveWarning'), [
       { text: t('common.cancel'), style: 'cancel' },
@@ -69,26 +65,21 @@ export default function WalletsScreen() {
       <View style={[styles.walletIcon, { backgroundColor: `${wallet.color}24`, borderColor: `${wallet.color}80` }]}>
         <Text style={[styles.walletGlyph, { color: wallet.color }]}>{WALLET_GLYPHS[wallet.icon ?? 'wallet'] ?? '$'}</Text>
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${t('wallet.detail')}: ${wallet.name}`}
-        onPress={() => router.push(`/wallets/${wallet.id}`)}
-        style={styles.rowContent}
-      >
+      <View style={styles.rowContent}>
         <Text numberOfLines={1} style={styles.rowName}>{localizeWalletName(wallet.type, wallet.name, t)}</Text>
         <Text style={styles.rowType}>{localizeWalletType(wallet.type, t)}{archived ? ` · ${t('wallet.archived')}` : ''}</Text>
-      </Pressable>
+      </View>
       <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.rowBalance, archived && styles.rowBalanceDisabled]}>
         {calculateWalletBalance(wallet.id, transactions, wallets).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })}
       </Text>
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${t('common.edit')} ${wallet.name}`}
-          onPress={() => openEdit(wallet)}
-          style={({ pressed }) => [styles.iconAction, pressed && styles.actionPressed]}
+          accessibilityLabel={`${t('wallet.viewWallet')}: ${wallet.name}`}
+          onPress={() => router.push(`/wallets/${wallet.id}`)}
+          style={({ pressed }) => [styles.viewWalletAction, pressed && styles.actionPressed]}
         >
-          <Text style={styles.actionGlyph}>...</Text>
+          <Text numberOfLines={1} style={styles.viewWalletLabel}>{t('wallet.viewWallet')}</Text>
         </Pressable>
         {archived ? (
           <Pressable onPress={() => restore(wallet)} style={({ pressed }) => [styles.textAction, pressed && styles.actionPressed]}>
@@ -254,11 +245,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: spacing.xs,
   },
-  iconAction: {
-    width: 28,
-    height: 24,
+  viewWalletAction: {
+    minHeight: 40,
+    minWidth: 74,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
   },
   textAction: {
     minHeight: 28,
@@ -277,9 +272,10 @@ const styles = StyleSheet.create({
     color: colors.income,
     fontWeight: '600',
   },
-  actionGlyph: {
+  viewWalletLabel: {
     fontSize: typography.caption,
-    color: colors.textSecondary,
+    color: colors.accent,
+    fontWeight: '600',
   },
   addButton: {
     position: 'absolute',

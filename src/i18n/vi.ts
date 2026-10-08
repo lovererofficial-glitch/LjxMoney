@@ -150,6 +150,7 @@ const vi: TranslationShape<typeof en> = {
     wallets: 'Ví tiền',
     totalBalance: 'TỔNG SỐ DƯ',
     detail: 'Chi tiết ví',
+    viewWallet: 'Xem ví',
     addWallet: 'Thêm ví',
     newWallet: 'Ví mới',
     editWallet: 'Sửa ví',

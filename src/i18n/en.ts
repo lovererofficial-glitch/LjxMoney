@@ -147,6 +147,7 @@ const en = {
     wallets: 'Wallets',
     totalBalance: 'TOTAL BALANCE',
     detail: 'Wallet detail',
+    viewWallet: 'View wallet',
     addWallet: 'Add wallet',
     newWallet: 'New wallet',
     editWallet: 'Edit wallet',
