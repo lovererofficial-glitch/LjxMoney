@@ -209,6 +209,44 @@ test('wallets remain scoped to their owner across logout and account switches', 
   assert.ok(harness.financeStore.getState().transactions.some((item) => item.id === 'adjustment-a'));
 });
 
+test('user A cannot create a transfer to a wallet that belongs to user B', async () => {
+  const harness = makeHarness();
+  await harness.financeStore.persist.rehydrate();
+  harness.setAuth(loginAs('user-a', 'a@example.com'));
+  await flush();
+  harness.financeStore.getState().addWallet({
+    id: 'wallet-a-source', name: 'A source', type: 'cash', color: '#000000', initialBalance: 1_000,
+  });
+
+  harness.setAuth({ status: 'unauthenticated', user: null });
+  await flush();
+  harness.setAuth(loginAs('user-b', 'b@example.com'));
+  await flush();
+  harness.financeStore.getState().addWallet({
+    id: 'wallet-b-destination', name: 'B destination', type: 'bank', color: '#000000', initialBalance: 0,
+  });
+
+  harness.setAuth({ status: 'unauthenticated', user: null });
+  await flush();
+  harness.setAuth(loginAs('user-a', 'a@example.com'));
+  await flush();
+  assert.throws(() => harness.financeStore.getState().addTransaction({
+    id: 'cross-user-transfer',
+    type: 'transfer',
+    amount: 100,
+    categoryId: '',
+    walletId: 'wallet-a-source',
+    sourceWalletId: 'wallet-a-source',
+    destinationWalletId: 'wallet-b-destination',
+    date: '2026-10-01',
+    time: '12:00',
+    note: '',
+    createdAt: '2026-10-01T12:00:00.000Z',
+    updatedAt: '2026-10-01T12:00:00.000Z',
+  }), /valid source and destination/i);
+  assert.ok(!harness.financeStore.getState().transactions.some((item) => item.id === 'cross-user-transfer'));
+});
+
 test('guest data migrates to first account once, never leaks to second', async () => {
   const harness = makeHarness();
   await harness.financeStore.persist.rehydrate();

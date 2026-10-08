@@ -115,6 +115,22 @@ export const calculateWalletBalance = (
   }, initialBalance);
 };
 
+export const calculateWalletBalanceAt = (
+  walletId: string,
+  transactions: Transaction[],
+  wallets: Wallet[],
+  date: string,
+  time: string,
+  excludeTransactionId?: string,
+) => calculateWalletBalance(
+  walletId,
+  transactions.filter((transaction) =>
+    transaction.id !== excludeTransactionId &&
+    (transaction.date < date || (transaction.date === date && transaction.time <= time)),
+  ),
+  wallets,
+);
+
 export const calculateWalletBalances = (transactions: Transaction[], wallets: Wallet[]) =>
   Object.fromEntries(
     wallets.map((wallet) => [wallet.id, calculateWalletBalance(wallet.id, transactions, wallets)]),

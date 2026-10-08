@@ -221,8 +221,15 @@ const vi: TranslationShape<typeof en> = {
   transfer: {
     create: 'Tạo giao dịch chuyển tiền',
     edit: 'Sửa giao dịch chuyển tiền',
+    submit: 'Chuyển tiền',
+    amount: 'Số tiền chuyển',
     from: 'Từ ví',
     to: 'Đến ví',
+    noActiveWallet: 'Không có ví đang hoạt động để chuyển tiền.',
+    needTwoActiveWallets: 'Cần ít nhất hai ví đang hoạt động để chuyển tiền.',
+    details: 'Chi tiết chuyển tiền',
+    success: 'Đã lưu giao dịch chuyển tiền.',
+    deleteConfirmation: 'Xóa giao dịch chuyển tiền này?',
   },
   statistics: {
     overview: 'Tổng quan',
@@ -354,6 +361,7 @@ const vi: TranslationShape<typeof en> = {
     validSource: 'Vui lòng chọn ví chuyển hợp lệ.',
     validDestination: 'Vui lòng chọn ví nhận hợp lệ.',
     differentWallets: 'Ví chuyển và ví nhận phải khác nhau.',
+    insufficientBalance: 'Số dư ví nguồn không đủ.',
     chooseCategory: 'Vui lòng chọn danh mục cho giao dịch.',
     chooseWallet: 'Vui lòng chọn ví cho giao dịch.',
     transactionSaveFailed: 'Không thể lưu giao dịch.',

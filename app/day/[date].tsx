@@ -79,7 +79,7 @@ export default function DayDetailScreen() {
               key={transaction.id}
               transaction={transaction}
               onPress={() =>
-                router.push({ pathname: '/transaction/[id]', params: { id: transaction.id } })
+                router.push({ pathname: '/transaction/id', params: { id: transaction.id } })
               }
               showDate={false}
             />

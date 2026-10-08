@@ -57,6 +57,21 @@ const makeAdjustment = (
   adjustmentDirection,
 });
 
+const makeTransfer = (
+  id: string,
+  amount: number,
+  date: string,
+  sourceWalletId: string,
+  destinationWalletId: string,
+  time = '12:00',
+): Transaction => ({
+  ...makeTransaction(id, 'transfer', amount, date, sourceWalletId, ''),
+  categoryId: '',
+  sourceWalletId,
+  destinationWalletId,
+  time,
+});
+
 const makeWallet = (id: string, initialBalance = 0): Wallet => ({
   id,
   name: id,
@@ -280,6 +295,70 @@ test('transfer actions update both wallet balances without changing cash flow', 
   assert.equal(store.getState().transactions.length, 1);
   assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), 1_000);
   assert.equal(calculateWalletBalance('bank', store.getState().transactions, store.getState().wallets), 0);
+});
+
+test('transfer preserves total, hydrates, edits source/destination/date, and deletes cleanly', () => {
+  const storage = createMemoryStorage();
+  const store = createFinanceStore(storage);
+  store.getState().updateWallet('cash', { initialBalance: 10_000_000 });
+  store.getState().updateWallet('bank', { initialBalance: 1_000_000 });
+  store.getState().addWallet(makeWallet('savings', 4_000_000));
+  const before = store.getState().wallets.reduce((sum, wallet) => sum + wallet.initialBalance, 0);
+
+  store.getState().addTransaction(makeTransfer('transfer-flow', 2_000_000, '2026-10-02', 'cash', 'bank'));
+  let hydratedStore = createFinanceStore(storage);
+  assert.equal(hydratedStore.getState().transactions[0]?.type, 'transfer');
+  assert.equal(calculateWalletBalance('cash', hydratedStore.getState().transactions, hydratedStore.getState().wallets), 8_000_000);
+  assert.equal(calculateWalletBalance('bank', hydratedStore.getState().transactions, hydratedStore.getState().wallets), 3_000_000);
+  assert.equal(
+    hydratedStore.getState().wallets.reduce(
+      (sum, wallet) => sum + calculateWalletBalance(wallet.id, hydratedStore.getState().transactions, hydratedStore.getState().wallets),
+      0,
+    ),
+    before,
+  );
+  assert.equal(calculateIncome(hydratedStore.getState().transactions), 0);
+  assert.equal(calculateExpense(hydratedStore.getState().transactions), 0);
+
+  hydratedStore.getState().updateTransaction('transfer-flow', {
+    amount: 3_000_000,
+    sourceWalletId: 'savings',
+    destinationWalletId: 'bank',
+    walletId: 'savings',
+    date: '2026-10-05',
+  });
+  hydratedStore = createFinanceStore(storage);
+  assert.equal(calculateWalletBalance('cash', hydratedStore.getState().transactions, hydratedStore.getState().wallets), 10_000_000);
+  assert.equal(calculateWalletBalance('bank', hydratedStore.getState().transactions, hydratedStore.getState().wallets), 4_000_000);
+  assert.equal(calculateWalletBalance('savings', hydratedStore.getState().transactions, hydratedStore.getState().wallets), 1_000_000);
+  assert.deepEqual(hydratedStore.getState().balances.map((balance) => balance.date), ['2026-10-05']);
+
+  hydratedStore.getState().deleteTransaction('transfer-flow');
+  assert.equal(calculateWalletBalance('cash', hydratedStore.getState().transactions, hydratedStore.getState().wallets), 10_000_000);
+  assert.equal(calculateWalletBalance('bank', hydratedStore.getState().transactions, hydratedStore.getState().wallets), 1_000_000);
+  assert.equal(calculateWalletBalance('savings', hydratedStore.getState().transactions, hydratedStore.getState().wallets), 4_000_000);
+  assert.deepEqual(hydratedStore.getState().transactions, []);
+});
+
+test('transfer rejects same, archived, and insufficient source wallets at the selected historical time', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  store.getState().updateWallet('cash', { initialBalance: 1_000_000 });
+  store.getState().addTransaction(makeTransaction('later-income', 'income', 1_000_000, '2026-10-05', 'cash'));
+
+  assert.throws(
+    () => store.getState().addTransaction(makeTransfer('overdraft-past', 1_500_000, '2026-10-02', 'cash', 'bank')),
+    /Insufficient balance/i,
+  );
+  assert.throws(
+    () => store.getState().addTransaction(makeTransfer('same-wallet', 100_000, '2026-10-06', 'cash', 'cash')),
+    /different wallets/i,
+  );
+
+  store.getState().archiveWallet('bank');
+  assert.throws(
+    () => store.getState().addTransaction(makeTransfer('archived-destination', 100_000, '2026-10-06', 'cash', 'bank')),
+    /valid source and destination/i,
+  );
 });
 
 test('budget and goal actions persist CRUD, archive, and contribution history across store hydration', () => {

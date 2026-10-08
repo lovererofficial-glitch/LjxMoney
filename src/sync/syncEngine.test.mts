@@ -211,6 +211,49 @@ test('wallet custom name and type survive cloud sync and restore independently',
   assert.equal(restore.getLocal().wallets[0]?.type, 'bank');
 });
 
+test('transfer syncs offline, restores from cloud, and repeated cycles do not duplicate it', async () => {
+  const harness = makeHarness();
+  const local = withBaseData(emptySnapshot());
+  local.wallets = [wallet('cash'), wallet('bank')];
+  local.transactions = [{
+    ...transaction('transfer-offline', NOW, 2_000),
+    type: 'transfer',
+    categoryId: '',
+    sourceWalletId: 'cash',
+    destinationWalletId: 'bank',
+    walletId: 'cash',
+  }];
+  harness.setLocal(local);
+  harness.cloud.setOffline(true);
+  await assert.rejects(() => runSyncCycle(harness.deps));
+  harness.cloud.setOffline(false);
+  await runSyncCycle(harness.deps);
+  assert.equal(harness.cloud.tables.transactions.size, 1);
+  assert.equal(harness.cloud.tables.transactions.get('transfer-offline')?.sourceWalletId, 'cash');
+  assert.equal(harness.cloud.tables.transactions.get('transfer-offline')?.destinationWalletId, 'bank');
+  await runSyncCycle(harness.deps);
+  assert.equal(harness.cloud.tables.transactions.size, 1);
+
+  const restore = makeHarness();
+  restore.cloud.tables.wallets.set('cash', wallet('cash'));
+  restore.cloud.tables.wallets.set('bank', wallet('bank'));
+  restore.cloud.tables.transactions.set('transfer-offline', structuredClone(harness.cloud.tables.transactions.get('transfer-offline')!));
+  await runSyncCycle(restore.deps);
+  assert.equal(restore.getLocal().transactions[0]?.type, 'transfer');
+  assert.equal(restore.getLocal().transactions[0]?.sourceWalletId, 'cash');
+  assert.equal(restore.getLocal().transactions[0]?.destinationWalletId, 'bank');
+
+  const localAfterDelete = restore.getLocal();
+  localAfterDelete.transactions = [];
+  restore.setLocal(localAfterDelete);
+  const deleteMeta = restore.getMeta();
+  deleteMeta.tombstones.push({ entity: 'transactions', id: 'transfer-offline', deletedAt: NOW });
+  await restore.deps.saveMeta(deleteMeta);
+  await runSyncCycle(restore.deps);
+  assert.equal(restore.cloud.tables.transactions.has('transfer-offline'), false);
+  assert.equal(restore.getLocal().transactions.length, 0);
+});
+
 test('offline changes keep local data untouched and fail as offline', async () => {
   const harness = makeHarness();
   harness.setLocal(withBaseData(emptySnapshot()));

@@ -218,8 +218,15 @@ const en = {
   transfer: {
     create: 'Create transfer',
     edit: 'Edit transfer',
+    submit: 'Transfer money',
+    amount: 'Transfer amount',
     from: 'From wallet',
     to: 'To wallet',
+    noActiveWallet: 'No active wallets are available for transfer.',
+    needTwoActiveWallets: 'At least two active wallets are required to make a transfer.',
+    details: 'Transfer details',
+    success: 'Transfer saved.',
+    deleteConfirmation: 'Delete this transfer?',
   },
   statistics: {
     overview: 'Overview',
@@ -351,6 +358,7 @@ const en = {
     validSource: 'Choose a valid source wallet.',
     validDestination: 'Choose a valid destination wallet.',
     differentWallets: 'The source and destination wallets must be different.',
+    insufficientBalance: 'Insufficient balance in source wallet.',
     chooseCategory: 'Choose a category for this transaction.',
     chooseWallet: 'Choose a wallet for this transaction.',
     transactionSaveFailed: 'The transaction could not be saved.',

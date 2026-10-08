@@ -61,7 +61,7 @@ export default function TransactionsScreen() {
               <TransactionRow
                 transaction={item}
                 onPress={() =>
-                  router.push({ pathname: '/transaction/[id]', params: { id: item.id } })
+                  router.push({ pathname: '/transaction/id', params: { id: item.id } })
                 }
                 showDate={false}
               />

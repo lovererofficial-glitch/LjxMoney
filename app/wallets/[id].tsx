@@ -125,8 +125,7 @@ export default function WalletDetailScreen() {
                 key={transaction.id}
                 onPress={transaction.type === 'adjustment'
                   ? () => router.push(`/wallets/adjust/${wallet.id}?transactionId=${transaction.id}`)
-                  : undefined}
-                disabled={transaction.type !== 'adjustment'}
+                  : () => router.push({ pathname: '/transaction/id', params: { id: transaction.id } })}
                 style={styles.row}
               >
                 <Text style={styles.rowDate}>{transaction.date}</Text>
@@ -135,6 +134,8 @@ export default function WalletDetailScreen() {
                   <Text style={styles.rowCategory}>
                     {transaction.type === 'adjustment'
                       ? transaction.note || t('transaction.adjustment')
+                      : transaction.type === 'transfer'
+                        ? `${localizeWalletName(transaction.sourceWalletId ?? transaction.walletId, wallets.find((item) => item.id === (transaction.sourceWalletId ?? transaction.walletId))?.name ?? t('transaction.from'), t)} → ${localizeWalletName(transaction.destinationWalletId ?? '', wallets.find((item) => item.id === transaction.destinationWalletId)?.name ?? t('transaction.to'), t)}`
                       : localizeCategoryName(
                           transaction.categoryId,
                           categories.find((category) => category.id === transaction.categoryId)?.name ?? transaction.categoryId,
@@ -144,13 +145,17 @@ export default function WalletDetailScreen() {
                 </View>
                 <Text style={[
                   styles.rowAmount,
-                  transaction.type === 'income' || (transaction.type === 'adjustment' && transaction.adjustmentDirection !== 'decrease')
+                  transaction.type === 'transfer'
+                    ? styles.transferAmount
+                    : transaction.type === 'income' || (transaction.type === 'adjustment' && transaction.adjustmentDirection !== 'decrease')
                     ? styles.positive
                     : styles.negative,
                 ]}>
-                  {transaction.type === 'adjustment'
-                    ? `${transaction.adjustmentDirection === 'decrease' ? '-' : '+'}`
-                    : transaction.type === 'income' ? '+' : '-'}
+                  {transaction.type === 'transfer'
+                    ? ''
+                    : transaction.type === 'adjustment'
+                      ? `${transaction.adjustmentDirection === 'decrease' ? '-' : '+'}`
+                      : transaction.type === 'income' ? '+' : '-'}
                   {transaction.amount.toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })}
                 </Text>
               </Pressable>
@@ -323,6 +328,9 @@ const styles = StyleSheet.create({
   },
   negative: {
     color: colors.expense,
+  },
+  transferAmount: {
+    color: colors.accent,
   },
   empty: {
     fontSize: typography.body,

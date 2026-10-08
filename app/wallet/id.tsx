@@ -78,7 +78,7 @@ export default function WalletDetailScreen() {
         <TransactionRow
           key={transaction.id}
           transaction={transaction}
-          onPress={() => router.push({ pathname: '/transaction/[id]', params: { id: transaction.id } })}
+          onPress={() => router.push({ pathname: '/transaction/id', params: { id: transaction.id } })}
         />
       )) : (
         <View style={styles.empty}>

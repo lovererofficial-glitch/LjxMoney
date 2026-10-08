@@ -18,6 +18,7 @@ import {
   addStreakCompletion,
   calculateExpense,
   calculateIncome,
+  calculateWalletBalanceAt,
   recalculateBalances,
   syncStreakWithTransactions,
 } from '../features/finance/financeEngine.ts';
@@ -120,6 +121,7 @@ const validateTransaction = (
   transaction: Transaction,
   categories: Category[],
   wallets: Wallet[],
+  transactions: Transaction[],
   allowArchivedWallets = false,
 ) => {
   if (!Number.isSafeInteger(transaction.amount) || transaction.amount <= 0) {
@@ -138,12 +140,25 @@ const validateTransaction = (
     if (
       !sourceWallet ||
       !destinationWallet ||
-      (!allowArchivedWallets && (sourceWallet.archivedAt || destinationWallet.archivedAt))
+      sourceWallet.archivedAt ||
+      destinationWallet.archivedAt
     ) {
       throw new Error('Choose valid source and destination wallets for the transfer.');
     }
     if (transaction.sourceWalletId === transaction.destinationWalletId) {
       throw new Error('Transfer source and destination must be different wallets.');
+    }
+    if (
+      transaction.amount >
+      calculateWalletBalanceAt(
+        sourceWallet.id,
+        transactions,
+        wallets,
+        transaction.date,
+        transaction.time,
+      )
+    ) {
+      throw new Error('Insufficient balance in source wallet.');
     }
     return;
   }
@@ -253,7 +268,7 @@ export const createFinanceStore = (storage: StateStorage) =>
       hydrationError: null,
       addTransaction: (transaction) => {
         const state = get();
-        validateTransaction(transaction, state.categories, state.wallets);
+        validateTransaction(transaction, state.categories, state.wallets, state.transactions);
         if (state.transactions.some((item) => item.id === transaction.id)) {
           throw new Error('A transaction with this ID already exists.');
         }
@@ -278,7 +293,13 @@ export const createFinanceStore = (storage: StateStorage) =>
           createdAt: existing.createdAt,
           updatedAt: new Date().toISOString(),
         };
-        validateTransaction(updated, state.categories, state.wallets, true);
+        validateTransaction(
+          updated,
+          state.categories,
+          state.wallets,
+          state.transactions.filter((item) => item.id !== existing.id),
+          true,
+        );
         const transactions = state.transactions.map((item) =>
           item.id === transactionId ? updated : item,
         );

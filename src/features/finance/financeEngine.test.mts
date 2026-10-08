@@ -6,6 +6,8 @@ import {
   calculateExpense,
   calculateIncome,
   calculateWalletBalance,
+  calculateWalletBalanceAt,
+  calculateNetCashFlow,
   calculateBalanceAdjustment,
   getCategorySpending,
   getDailyBalanceSeries,
@@ -144,6 +146,7 @@ test('transfer updates wallet balances without affecting income or expense total
 
   assert.equal(calculateIncome([transfer]), 0);
   assert.equal(calculateExpense([transfer]), 0);
+  assert.equal(calculateNetCashFlow([transfer]), 0);
   assert.equal(
     getWalletSpending([transfer]).find((entry) => entry.walletId === 'cash')?.net,
     -200_000,
@@ -152,6 +155,26 @@ test('transfer updates wallet balances without affecting income or expense total
     getWalletSpending([transfer]).find((entry) => entry.walletId === 'bank')?.net,
     200_000,
   );
+});
+
+test('wallet balance as of a historical date uses the existing wallet balance calculation', () => {
+  const wallets = [
+    { id: 'cash', name: 'Cash', type: 'cash' as const, color: '#000000', initialBalance: 1_000_000 },
+    { id: 'bank', name: 'Bank', type: 'bank' as const, color: '#000000', initialBalance: 0 },
+  ];
+  const transactions: Transaction[] = [
+    { ...transaction('income-future', 'income', 1_000_000, '2026-10-05'), walletId: 'cash' },
+    {
+      ...transaction('transfer', 'transfer', 200_000, '2026-10-04'),
+      categoryId: '',
+      sourceWalletId: 'cash',
+      destinationWalletId: 'bank',
+    },
+  ];
+
+  assert.equal(calculateWalletBalanceAt('cash', transactions, wallets, '2026-10-04', '12:00'), 800_000);
+  assert.equal(calculateWalletBalanceAt('cash', transactions, wallets, '2026-10-04', '12:00', 'transfer'), 1_000_000);
+  assert.equal(calculateWalletBalance('cash', transactions, wallets), 1_800_000);
 });
 
 test('balance adjustments use signed amounts without changing income or expense totals', () => {

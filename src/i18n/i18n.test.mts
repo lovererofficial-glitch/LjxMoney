@@ -57,6 +57,17 @@ test('custom wallet names are never replaced by their wallet type translation', 
   assert.equal(translate('vi', 'wallet.bank'), 'Ngân hàng');
 });
 
+test('transfer form labels and validation are localized in Vietnamese and English', () => {
+  assert.equal(translate('vi', 'transfer.submit'), 'Chuyển tiền');
+  assert.equal(translate('vi', 'transfer.from'), 'Từ ví');
+  assert.equal(translate('vi', 'transfer.to'), 'Đến ví');
+  assert.equal(translate('vi', 'validation.insufficientBalance'), 'Số dư ví nguồn không đủ.');
+  assert.equal(translate('en', 'transfer.submit'), 'Transfer money');
+  assert.equal(translate('en', 'transfer.from'), 'From wallet');
+  assert.equal(translate('en', 'transfer.to'), 'To wallet');
+  assert.equal(translate('en', 'validation.insufficientBalance'), 'Insufficient balance in source wallet.');
+});
+
 test('sync error labels are localized in both languages', () => {
   assert.equal(translate('vi', 'sync.details'), 'Chi tiết:');
   assert.equal(translate('vi', 'sync.retry'), 'Thử lại');

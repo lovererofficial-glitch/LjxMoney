@@ -1,7 +1,7 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { format, parseISO } from 'date-fns';
 import * as Haptics from 'expo-haptics';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Transaction } from '../features/finance/models';
+import { calculateWalletBalanceAt } from '../features/finance/financeEngine';
 import { formatVndInput, parseVndInput } from '../lib/formatters';
 import { formatLocalizedCurrency, formatLocalizedDate } from '../i18n/formatting';
 import { localizeCategoryName, localizeWalletName, translateFinanceError, useI18n } from '../i18n';
@@ -56,6 +57,8 @@ export const TransactionForm = ({
   const { language, t } = useI18n();
   const categories = useFinanceStore((state) => state.categories);
   const wallets = useFinanceStore((state) => state.wallets);
+  const transactions = useFinanceStore((state) => state.transactions);
+  const activeWallets = wallets.filter((wallet) => !wallet.archivedAt);
   const selectableWallets = wallets.filter(
     (wallet) =>
       !wallet.archivedAt ||
@@ -72,6 +75,7 @@ export const TransactionForm = ({
           ? 'income'
           : 'expense'),
   );
+          const transferWallets = type === 'transfer' ? activeWallets : selectableWallets;
   const [amountText, setAmountText] = useState(initialAmount ? formatVndInput(initialAmount, language) : '');
   const [categoryId, setCategoryId] = useState(initialTransaction?.categoryId ?? '');
   const [walletId, setWalletId] = useState(
@@ -91,6 +95,8 @@ export const TransactionForm = ({
   const [note, setNote] = useState(initialTransaction?.note ?? '');
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
   const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const saveLock = useRef(false);
   const selectedAmount = parseVndInput(amountText);
   const isTransfer = type === 'transfer';
   const availableCategories = categories.filter(
@@ -100,9 +106,39 @@ export const TransactionForm = ({
   );
   const selectedCategory = availableCategories.find((category) => category.id === categoryId);
   const selectedWallet = selectableWallets.find((wallet) => wallet.id === walletId);
-  const selectedSourceWallet = selectableWallets.find((wallet) => wallet.id === sourceWalletId);
-  const selectedDestinationWallet = selectableWallets.find((wallet) => wallet.id === destinationWalletId);
+  const selectedSourceWallet = transferWallets.find((wallet) => wallet.id === sourceWalletId);
+  const selectedDestinationWallet = transferWallets.find((wallet) => wallet.id === destinationWalletId);
   const pickerValue = makeTransactionDate(date, time);
+  const validTransferDate = /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+    !Number.isNaN(parseISO(date).getTime()) &&
+    format(parseISO(date), 'yyyy-MM-dd') === date;
+  const validTransferTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+  const sourceAvailableBalance = selectedSourceWallet && validTransferDate && validTransferTime
+    ? calculateWalletBalanceAt(
+        selectedSourceWallet.id,
+        transactions,
+        wallets,
+        date,
+        time,
+        initialTransaction?.type === 'transfer' ? initialTransaction.id : undefined,
+      )
+    : 0;
+
+  const save = (
+    values: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>,
+    fallback: 'validation.transferSaveFailed' | 'validation.transactionSaveFailed',
+  ) => {
+    if (saveLock.current) return;
+    saveLock.current = true;
+    setIsSaving(true);
+    try {
+      onSave(values);
+    } catch (saveError) {
+      saveLock.current = false;
+      setIsSaving(false);
+      setError(translateFinanceError(saveError, t, fallback));
+    }
+  };
 
   const handleTypeChange = (nextType: 'income' | 'expense' | 'transfer') => {
     selectionFeedback();
@@ -152,6 +188,10 @@ export const TransactionForm = ({
     }
 
     if (isTransfer) {
+      if (activeWallets.length < 2) {
+        setError(t('transfer.needTwoActiveWallets'));
+        return;
+      }
       if (!selectedSourceWallet) {
         setError(t('validation.validSource'));
         return;
@@ -164,10 +204,13 @@ export const TransactionForm = ({
         setError(t('validation.differentWallets'));
         return;
       }
+      if (selectedAmount > sourceAvailableBalance) {
+        setError(t('validation.insufficientBalance'));
+        return;
+      }
 
       setError('');
-      try {
-        onSave({
+      save({
           type: 'transfer',
           amount: selectedAmount,
           categoryId: '',
@@ -177,10 +220,7 @@ export const TransactionForm = ({
           date,
           time,
           note: note.trim(),
-        });
-      } catch (saveError) {
-        setError(translateFinanceError(saveError, t, 'validation.transferSaveFailed'));
-      }
+        }, 'validation.transferSaveFailed');
       return;
     }
 
@@ -194,8 +234,7 @@ export const TransactionForm = ({
     }
 
     setError('');
-    try {
-      onSave({
+    save({
         type,
         amount: selectedAmount,
         categoryId: selectedCategory.id,
@@ -203,10 +242,7 @@ export const TransactionForm = ({
         date,
         time,
         note: note.trim(),
-      });
-    } catch (saveError) {
-      setError(translateFinanceError(saveError, t, 'validation.transactionSaveFailed'));
-    }
+      }, 'validation.transactionSaveFailed');
   };
 
   return (
@@ -225,7 +261,11 @@ export const TransactionForm = ({
             <Text style={styles.cancelText}>{t('common.cancel')}</Text>
           </Pressable>
           <Text style={styles.headerTitle}>
-            {initialTransaction ? t('transaction.editTransaction') : isTransfer ? t('transfer.create') : t('transaction.newTransaction')}
+            {initialTransaction?.type === 'transfer'
+              ? t('transfer.edit')
+              : initialTransaction
+                ? t('transaction.editTransaction')
+                : isTransfer ? t('transfer.create') : t('transaction.newTransaction')}
           </Text>
           <View style={styles.headerAction} />
         </View>
@@ -256,7 +296,7 @@ export const TransactionForm = ({
             />
           </View>
 
-          <Text style={styles.label}>{t('transaction.amount')}</Text>
+          <Text style={styles.label}>{isTransfer ? t('transfer.amount') : t('transaction.amount')}</Text>
           <View style={styles.amountField}>
             <TextInput
               accessibilityLabel={t('transaction.amountAccessibility')}
@@ -280,9 +320,14 @@ export const TransactionForm = ({
 
           {isTransfer ? (
             <>
+              {activeWallets.length < 2 ? (
+                <Text style={styles.transferNotice}>
+                  {activeWallets.length === 0 ? t('transfer.noActiveWallet') : t('transfer.needTwoActiveWallets')}
+                </Text>
+              ) : null}
               <Text style={styles.label}>{t('transfer.from')}</Text>
               <View style={styles.walletList}>
-                {selectableWallets.map((wallet) => (
+                {transferWallets.map((wallet) => (
                   <OptionButton
                     key={wallet.id}
                     label={localizeWalletName(wallet.id, wallet.name, t)}
@@ -299,7 +344,7 @@ export const TransactionForm = ({
 
               <Text style={styles.label}>{t('transfer.to')}</Text>
               <View style={styles.walletList}>
-                {selectableWallets.map((wallet) => (
+                {transferWallets.map((wallet) => (
                   <OptionButton
                     key={wallet.id}
                     label={localizeWalletName(wallet.id, wallet.name, t)}
@@ -387,10 +432,22 @@ export const TransactionForm = ({
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Pressable
             accessibilityRole="button"
+            accessibilityState={{ disabled: isSaving || (isTransfer && activeWallets.length < 2) }}
+            disabled={isSaving || (isTransfer && activeWallets.length < 2)}
             onPress={handleSave}
-            style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.saveButton,
+              pressed && styles.pressed,
+              (isSaving || (isTransfer && activeWallets.length < 2)) && styles.saveDisabled,
+            ]}
           >
-            <Text style={styles.saveLabel}>{initialTransaction ? t('common.saveChanges') : t('transaction.saveTransaction')}</Text>
+            <Text style={styles.saveLabel}>
+              {isSaving
+                ? t('common.loading')
+                : isTransfer
+                  ? t('transfer.submit')
+                  : initialTransaction ? t('common.saveChanges') : t('transaction.saveTransaction')}
+            </Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -568,6 +625,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   error: { color: colors.expense, fontSize: 14, marginTop: spacing.md },
+  transferNotice: {
+    color: colors.warning,
+    fontSize: 14,
+    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
+  },
   saveButton: {
     minHeight: 54,
     alignItems: 'center',
@@ -577,6 +640,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   saveLabel: { color: colors.background, fontSize: 16, fontWeight: '800' },
+  saveDisabled: { opacity: 0.45 },
   pressed: { opacity: 0.8 },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay },
   pickerSheet: {
