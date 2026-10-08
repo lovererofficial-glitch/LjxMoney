@@ -88,9 +88,30 @@ export default function WalletDetailScreen() {
         </View>
       </View>
 
-      <View style={styles.card}>
+      <View style={styles.balanceCard}>
         <Text style={styles.cardTitle}>{t('wallet.currentBalance')}</Text>
         <Text style={styles.balance}>{balance.toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })}</Text>
+        {!wallet.archivedAt ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push(`/wallets/adjust/${wallet.id}`)}
+            style={({ pressed }) => [styles.adjustButton, pressed && styles.secondaryButtonPressed]}
+          >
+            <Text style={styles.adjustLabel}>{t('wallet.adjustBalance')}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t('wallet.walletInformation')}</Text>
+        <View style={styles.informationRow}>
+          <Text style={styles.informationLabel}>{t('wallet.type')}</Text>
+          <Text style={styles.informationValue}>{localizeWalletType(wallet.type, t)}</Text>
+        </View>
+        <View style={styles.informationRow}>
+          <Text style={styles.informationLabel}>{t('wallet.name')}</Text>
+          <Text style={styles.informationValue}>{localizeWalletName(wallet.type, wallet.name, t)}</Text>
+        </View>
       </View>
 
       <View style={styles.card}>
@@ -100,22 +121,39 @@ export default function WalletDetailScreen() {
         ) : (
           <View style={styles.list}>
             {transactionsForWallet.slice(0, 10).map((transaction) => (
-              <View key={transaction.id} style={styles.row}>
+              <Pressable
+                key={transaction.id}
+                onPress={transaction.type === 'adjustment'
+                  ? () => router.push(`/wallets/adjust/${wallet.id}?transactionId=${transaction.id}`)
+                  : undefined}
+                disabled={transaction.type !== 'adjustment'}
+                style={styles.row}
+              >
                 <Text style={styles.rowDate}>{transaction.date}</Text>
                 <View style={styles.rowMeta}>
                   <Text style={styles.rowAction}>{t(`transaction.${transaction.type}`)}</Text>
                   <Text style={styles.rowCategory}>
-                    {localizeCategoryName(
-                      transaction.categoryId,
-                      categories.find((category) => category.id === transaction.categoryId)?.name ?? transaction.categoryId,
-                      t,
-                    )}
+                    {transaction.type === 'adjustment'
+                      ? transaction.note || t('transaction.adjustment')
+                      : localizeCategoryName(
+                          transaction.categoryId,
+                          categories.find((category) => category.id === transaction.categoryId)?.name ?? transaction.categoryId,
+                          t,
+                        )}
                   </Text>
                 </View>
-                <Text style={[styles.rowAmount, transaction.type === 'income' ? styles.positive : styles.negative]}>
+                <Text style={[
+                  styles.rowAmount,
+                  transaction.type === 'income' || (transaction.type === 'adjustment' && transaction.adjustmentDirection !== 'decrease')
+                    ? styles.positive
+                    : styles.negative,
+                ]}>
+                  {transaction.type === 'adjustment'
+                    ? `${transaction.adjustmentDirection === 'decrease' ? '-' : '+'}`
+                    : transaction.type === 'income' ? '+' : '-'}
                   {transaction.amount.toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         )}
@@ -207,6 +245,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
   },
+  balanceCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
   cardTitle: {
     fontSize: typography.body,
     color: colors.textSecondary,
@@ -214,6 +258,35 @@ const styles = StyleSheet.create({
   },
   balance: {
     fontSize: typography.headline,
+    color: colors.text,
+  },
+  adjustButton: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    backgroundColor: colors.accent,
+    marginTop: spacing.md,
+  },
+  adjustLabel: {
+    fontSize: typography.body,
+    color: colors.background,
+    fontWeight: '700',
+  },
+  informationRow: {
+    minHeight: 36,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  informationLabel: {
+    fontSize: typography.body,
+    color: colors.textSecondary,
+  },
+  informationValue: {
+    fontSize: typography.body,
     color: colors.text,
   },
   list: {

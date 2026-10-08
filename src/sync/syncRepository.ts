@@ -68,6 +68,9 @@ const transactionFromRow = (row: Record<string, unknown>): Transaction => ({
   id: String(row.id),
   type: row.type as Transaction['type'],
   amount: toNumber(row.amount),
+  adjustmentDirection: row.type === 'adjustment'
+    ? (row.adjustment_direction as Transaction['adjustmentDirection']) ?? 'increase'
+    : undefined,
   categoryId: (row.category_id as string | null) ?? '',
   walletId: String(row.wallet_id ?? ''),
   sourceWalletId: toOptionalString(row.source_wallet_id),
@@ -84,6 +87,9 @@ const transactionToRow = (userId: string, transaction: Transaction) => ({
   id: transaction.id,
   type: transaction.type,
   amount: transaction.amount,
+  adjustment_direction: transaction.type === 'adjustment'
+    ? transaction.adjustmentDirection ?? 'increase'
+    : null,
   category_id: transaction.categoryId || null,
   wallet_id: transaction.walletId,
   source_wallet_id: transaction.sourceWalletId ?? null,

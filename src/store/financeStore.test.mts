@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { StateStorage } from 'zustand/middleware';
 
-import { calculateBudgetSummary, calculateGoalSummary, calculateWalletBalance } from '../features/finance/financeEngine.ts';
+import {
+  calculateBudgetSummary,
+  calculateExpense,
+  calculateGoalSummary,
+  calculateIncome,
+  calculateWalletBalance,
+} from '../features/finance/financeEngine.ts';
 import type { Budget, GoalContribution, SavingsGoal, Transaction, Wallet } from '../features/finance/models.ts';
 import { createFinanceStore, registerSyncDeletionListener } from './financeStoreCore.ts';
 
@@ -37,6 +43,18 @@ const makeTransaction = (
   note: '',
   createdAt: `${date}T12:00:00.000Z`,
   updatedAt: `${date}T12:00:00.000Z`,
+});
+
+const makeAdjustment = (
+  id: string,
+  amount: number,
+  date: string,
+  adjustmentDirection: NonNullable<Transaction['adjustmentDirection']>,
+  walletId = 'cash',
+): Transaction => ({
+  ...makeTransaction(id, 'adjustment', amount, date, walletId, ''),
+  categoryId: '',
+  adjustmentDirection,
 });
 
 const makeWallet = (id: string, initialBalance = 0): Wallet => ({
@@ -156,6 +174,72 @@ test('wallet balance follows transaction edits, wallet changes, and deletion', (
   assert.equal(calculateWalletBalance('secondary', store.getState().transactions, store.getState().wallets), 1_000);
   store.getState().deleteTransaction('income');
   assert.equal(calculateWalletBalance('secondary', store.getState().transactions, store.getState().wallets), 0);
+});
+
+test('balance adjustments increase and decrease wallet balance without income or expense', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  const wallet = makeWallet('cash', 1_000_000);
+  store.getState().updateWallet('cash', { initialBalance: wallet.initialBalance });
+  store.getState().addTransaction(makeAdjustment('adjust-up', 200_000, '2026-10-01', 'increase'));
+
+  assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), 1_200_000);
+  assert.equal(calculateIncome(store.getState().transactions), 0);
+  assert.equal(calculateExpense(store.getState().transactions), 0);
+
+  store.getState().addTransaction(makeAdjustment('adjust-down', 400_000, '2026-10-02', 'decrease'));
+  assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), 800_000);
+  assert.equal(calculateIncome(store.getState().transactions), 0);
+  assert.equal(calculateExpense(store.getState().transactions), 0);
+});
+
+test('adjustment transactions persist locally and legacy rows retain increase semantics', () => {
+  const storage = createMemoryStorage();
+  const firstStore = createFinanceStore(storage);
+  firstStore.getState().addTransaction(makeAdjustment('persisted-adjustment', 125_000, '2026-10-01', 'decrease'));
+
+  const hydratedStore = createFinanceStore(storage);
+  assert.equal(hydratedStore.getState().transactions[0]?.adjustmentDirection, 'decrease');
+  assert.equal(
+    calculateWalletBalance('cash', hydratedStore.getState().transactions, hydratedStore.getState().wallets),
+    -125_000,
+  );
+
+  const legacyAdjustment = makeAdjustment('legacy-adjustment', 75_000, '2026-10-02', 'increase');
+  delete legacyAdjustment.adjustmentDirection;
+  const legacyStore = createFinanceStore(createMemoryStorage());
+  legacyStore.getState().addTransaction(legacyAdjustment);
+  assert.equal(
+    calculateWalletBalance('cash', legacyStore.getState().transactions, legacyStore.getState().wallets),
+    75_000,
+  );
+});
+
+test('editing and deleting a dated balance adjustment recalculates historical balances', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  store.getState().updateWallet('cash', { initialBalance: 1_000_000 });
+  store.getState().addTransaction(makeAdjustment('adjustment', 100_000, '2026-10-01', 'increase'));
+  store.getState().addTransaction(makeTransaction('later-income', 'income', 50_000, '2026-10-03'));
+  assert.equal(store.getState().balances.at(-1)?.closingBalance, 1_150_000);
+
+  store.getState().updateTransaction('adjustment', {
+    amount: 25_000,
+    adjustmentDirection: 'decrease',
+    date: '2026-10-02',
+    note: 'Counted cash again',
+  });
+  assert.deepEqual(
+    store.getState().balances.map(({ date, closingBalance }) => [date, closingBalance]),
+    [
+      ['2026-10-02', 975_000],
+      ['2026-10-03', 1_025_000],
+    ],
+  );
+  assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), 1_025_000);
+
+  store.getState().deleteTransaction('adjustment');
+  assert.equal(store.getState().transactions.length, 1);
+  assert.equal(store.getState().transactions[0]?.id, 'later-income');
+  assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), 1_050_000);
 });
 
 test('transfer actions update both wallet balances without changing cash flow', () => {

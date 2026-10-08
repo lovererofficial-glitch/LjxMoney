@@ -32,7 +32,8 @@ export const TransactionRow = ({
   const destinationWallet = useFinanceStore((state) =>
     state.wallets.find((item) => item.id === transaction.destinationWalletId),
   );
-  const isPositive = transaction.type === 'income' || transaction.type === 'adjustment';
+  const isPositive = transaction.type === 'income' ||
+    (transaction.type === 'adjustment' && transaction.adjustmentDirection !== 'decrease');
   const typeLabel = t(
     transaction.type === 'adjustment'
       ? 'transaction.adjustment'

@@ -179,6 +179,19 @@ test('wallets remain scoped to their owner across logout and account switches', 
     updatedAt: '2026-10-01T00:00:00.000Z',
   };
   harness.financeStore.getState().addWallet(wallet);
+  harness.financeStore.getState().addTransaction({
+    id: 'adjustment-a',
+    type: 'adjustment',
+    amount: 250,
+    adjustmentDirection: 'decrease',
+    categoryId: '',
+    walletId: wallet.id,
+    date: '2026-10-01',
+    time: '12:00',
+    note: 'Cash count',
+    createdAt: '2026-10-01T12:00:00.000Z',
+    updatedAt: '2026-10-01T12:00:00.000Z',
+  });
   await flush();
 
   harness.setAuth({ status: 'unauthenticated', user: null });
@@ -186,12 +199,14 @@ test('wallets remain scoped to their owner across logout and account switches', 
   harness.setAuth(loginAs('user-b', 'b@example.com'));
   await flush();
   assert.ok(!harness.financeStore.getState().wallets.some((item) => item.id === wallet.id));
+  assert.ok(!harness.financeStore.getState().transactions.some((item) => item.id === 'adjustment-a'));
 
   harness.setAuth({ status: 'unauthenticated', user: null });
   await flush();
   harness.setAuth(loginAs('user-a', 'a@example.com'));
   await flush();
   assert.ok(harness.financeStore.getState().wallets.some((item) => item.id === wallet.id));
+  assert.ok(harness.financeStore.getState().transactions.some((item) => item.id === 'adjustment-a'));
 });
 
 test('guest data migrates to first account once, never leaks to second', async () => {

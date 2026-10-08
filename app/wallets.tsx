@@ -69,10 +69,15 @@ export default function WalletsScreen() {
       <View style={[styles.walletIcon, { backgroundColor: `${wallet.color}24`, borderColor: `${wallet.color}80` }]}>
         <Text style={[styles.walletGlyph, { color: wallet.color }]}>{WALLET_GLYPHS[wallet.icon ?? 'wallet'] ?? '$'}</Text>
       </View>
-      <View style={styles.rowContent}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t('wallet.detail')}: ${wallet.name}`}
+        onPress={() => router.push(`/wallets/${wallet.id}`)}
+        style={styles.rowContent}
+      >
         <Text numberOfLines={1} style={styles.rowName}>{localizeWalletName(wallet.type, wallet.name, t)}</Text>
         <Text style={styles.rowType}>{localizeWalletType(wallet.type, t)}{archived ? ` · ${t('wallet.archived')}` : ''}</Text>
-      </View>
+      </Pressable>
       <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.rowBalance, archived && styles.rowBalanceDisabled]}>
         {calculateWalletBalance(wallet.id, transactions, wallets).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })}
       </Text>

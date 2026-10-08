@@ -136,7 +136,8 @@ const pruneOrphans = (
           row.destinationWalletId !== undefined &&
           walletIds.has(row.sourceWalletId) &&
           walletIds.has(row.destinationWalletId)));
-    const categoryOk = row.type === 'transfer' || categoryIds.has(row.categoryId);
+    const categoryOk =
+      row.type === 'transfer' || row.type === 'adjustment' || categoryIds.has(row.categoryId);
     if (walletsOk && categoryOk) {
       return true;
     }

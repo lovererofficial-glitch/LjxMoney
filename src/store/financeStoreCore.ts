@@ -152,6 +152,16 @@ const validateTransaction = (
   if (!wallet || (!allowArchivedWallets && wallet.archivedAt)) {
     throw new Error('Choose a valid wallet.');
   }
+  if (transaction.type === 'adjustment') {
+    if (
+      transaction.adjustmentDirection !== undefined &&
+      transaction.adjustmentDirection !== 'increase' &&
+      transaction.adjustmentDirection !== 'decrease'
+    ) {
+      throw new Error('Choose a valid balance adjustment direction.');
+    }
+    return;
+  }
   const category = categories.find((item) => item.id === transaction.categoryId);
   if (!category) {
     throw new Error('Choose a valid category.');

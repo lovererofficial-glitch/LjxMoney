@@ -272,6 +272,35 @@ test('wallet create, edit, archive, and restore sync through offline reconnect w
   assert.equal(harness.cloud.tables.wallets.size, 2);
 });
 
+test('adjustments sync offline to cloud, restore from cloud, and are not duplicated', async () => {
+  const harness = makeHarness();
+  const local = withBaseData(emptySnapshot());
+  local.transactions = [{
+    ...transaction('adjustment-offline', NOW),
+    type: 'adjustment',
+    categoryId: '',
+    amount: 250,
+    adjustmentDirection: 'decrease',
+    note: 'Counted cash',
+  }];
+  harness.setLocal(local);
+  harness.cloud.setOffline(true);
+  await assert.rejects(() => runSyncCycle(harness.deps));
+  harness.cloud.setOffline(false);
+
+  await runSyncCycle(harness.deps);
+  assert.equal(harness.cloud.tables.transactions.size, 1);
+  assert.equal(harness.cloud.tables.transactions.get('adjustment-offline')?.adjustmentDirection, 'decrease');
+  await runSyncCycle(harness.deps);
+  assert.equal(harness.cloud.tables.transactions.size, 1);
+
+  const restoreHarness = makeHarness();
+  restoreHarness.cloud.tables.wallets.set('cash', wallet('cash'));
+  restoreHarness.cloud.tables.transactions.set('adjustment-offline', local.transactions[0]!);
+  await runSyncCycle(restoreHarness.deps);
+  assert.equal(restoreHarness.getLocal().transactions[0]?.adjustmentDirection, 'decrease');
+});
+
 test('delete sync: offline deletion eventually removes the cloud row', async () => {
   const harness = makeHarness();
   const local = withBaseData(emptySnapshot());

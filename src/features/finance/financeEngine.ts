@@ -41,8 +41,35 @@ export const calculateIncome = (transactions: Transaction[]) => sumByType(transa
 
 export const calculateExpense = (transactions: Transaction[]) => sumByType(transactions, 'expense');
 
+export const getSignedAdjustmentAmount = (
+  transaction: Pick<Transaction, 'amount' | 'adjustmentDirection'>,
+) => transaction.adjustmentDirection === 'decrease' ? -transaction.amount : transaction.amount;
+
+export const calculateBalanceAdjustment = (currentBalance: number, targetBalance: number) => {
+  if (
+    !Number.isSafeInteger(currentBalance) ||
+    !Number.isSafeInteger(targetBalance) ||
+    targetBalance < 0
+  ) {
+    throw new RangeError('Target balance must be a non-negative safe whole number.');
+  }
+  const difference = targetBalance - currentBalance;
+  if (difference === 0) {
+    return null;
+  }
+  if (!Number.isSafeInteger(difference)) {
+    throw new RangeError('The balance difference is too large.');
+  }
+  return {
+    amount: Math.abs(difference),
+    adjustmentDirection: difference > 0 ? 'increase' as const : 'decrease' as const,
+  };
+};
+
 export const calculateAdjustment = (transactions: Transaction[]) =>
-  sumByType(transactions, 'adjustment');
+  transactions
+    .filter((transaction) => transaction.type === 'adjustment')
+    .reduce((total, transaction) => total + getSignedAdjustmentAmount(transaction), 0);
 
 export const calculateNetCashFlow = (transactions: Transaction[]) =>
   calculateIncome(transactions) - calculateExpense(transactions) + calculateAdjustment(transactions);
@@ -78,7 +105,10 @@ export const calculateWalletBalance = (
     if (transaction.walletId !== walletId) {
       return balance;
     }
-    if (transaction.type === 'income' || transaction.type === 'adjustment') {
+    if (transaction.type === 'adjustment') {
+      return balance + getSignedAdjustmentAmount(transaction);
+    }
+    if (transaction.type === 'income') {
       return balance + transaction.amount;
     }
     return transaction.type === 'expense' ? balance - transaction.amount : balance;
@@ -161,7 +191,7 @@ const summarizeTransactionsByDate = (transactions: Transaction[]) => {
     const totals = dailyTotals.get(transaction.date) ?? { income: 0, expense: 0, adjustment: 0 };
     if (transaction.type === 'income') totals.income += transaction.amount;
     if (transaction.type === 'expense') totals.expense += transaction.amount;
-    if (transaction.type === 'adjustment') totals.adjustment += transaction.amount;
+    if (transaction.type === 'adjustment') totals.adjustment += getSignedAdjustmentAmount(transaction);
     dailyTotals.set(transaction.date, totals);
   }
   return dailyTotals;
@@ -314,7 +344,7 @@ export const getWalletSpending = (
       continue;
     }
 
-    if (transaction.type === 'income' || transaction.type === 'adjustment') {
+    if (transaction.type === 'income') {
       const wallet = byWallet.get(transaction.walletId) ?? {
         walletId: transaction.walletId,
         inflow: 0,
@@ -323,6 +353,17 @@ export const getWalletSpending = (
       };
       wallet.inflow += transaction.amount;
       wallet.net += transaction.amount;
+      byWallet.set(transaction.walletId, wallet);
+    }
+
+    if (transaction.type === 'adjustment') {
+      const wallet = byWallet.get(transaction.walletId) ?? {
+        walletId: transaction.walletId,
+        inflow: 0,
+        outflow: 0,
+        net: 0,
+      };
+      wallet.net += getSignedAdjustmentAmount(transaction);
       byWallet.set(transaction.walletId, wallet);
     }
 

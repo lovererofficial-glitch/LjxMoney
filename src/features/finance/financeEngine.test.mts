@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  calculateAdjustment,
   calculateExpense,
   calculateIncome,
+  calculateWalletBalance,
+  calculateBalanceAdjustment,
   getCategorySpending,
   getDailyBalanceSeries,
   getWalletSpending,
@@ -149,6 +152,47 @@ test('transfer updates wallet balances without affecting income or expense total
     getWalletSpending([transfer]).find((entry) => entry.walletId === 'bank')?.net,
     200_000,
   );
+});
+
+test('balance adjustments use signed amounts without changing income or expense totals', () => {
+  const decrease: Transaction = {
+    ...transaction('adjustment-down', 'adjustment', 200_000, '2026-10-02'),
+    categoryId: '',
+    adjustmentDirection: 'decrease',
+  };
+  const increase: Transaction = {
+    ...transaction('adjustment-up', 'adjustment', 50_000, '2026-10-03'),
+    categoryId: '',
+  };
+  const transactions = [decrease, increase];
+
+  assert.equal(calculateWalletBalance('cash', transactions, [{
+    id: 'cash', name: 'Cash', type: 'cash', color: '#000000', initialBalance: 1_000_000,
+  }]), 850_000);
+  assert.equal(calculateAdjustment(transactions), -150_000);
+  assert.equal(calculateIncome(transactions), 0);
+  assert.equal(calculateExpense(transactions), 0);
+  assert.deepEqual(
+    recalculateBalances(transactions, 1_000_000).map((balance) => balance.closingBalance),
+    [800_000, 850_000],
+  );
+});
+
+test('balance adjustment helper returns direction and skips unchanged targets', () => {
+  assert.deepEqual(calculateBalanceAdjustment(1_000_000, 1_200_000), {
+    amount: 200_000,
+    adjustmentDirection: 'increase',
+  });
+  assert.deepEqual(calculateBalanceAdjustment(1_000_000, 800_000), {
+    amount: 200_000,
+    adjustmentDirection: 'decrease',
+  });
+  assert.equal(calculateBalanceAdjustment(1_000_000, 1_000_000), null);
+  assert.throws(() => calculateBalanceAdjustment(1_000_000, -1), /Target balance must/i);
+  assert.deepEqual(calculateBalanceAdjustment(-500, 0), {
+    amount: 500,
+    adjustmentDirection: 'increase',
+  });
 });
 
 test('daily balance series includes zero-transaction dates across a range', () => {

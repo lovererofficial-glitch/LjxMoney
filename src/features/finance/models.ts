@@ -1,4 +1,5 @@
 export type TransactionType = 'income' | 'expense' | 'transfer' | 'adjustment';
+export type AdjustmentDirection = 'increase' | 'decrease';
 export type CategoryType = 'income' | 'expense';
 export type WalletType = 'cash' | 'bank' | 'ewallet' | 'card' | 'savings' | 'other';
 
@@ -6,6 +7,7 @@ export interface Transaction {
   id: string;
   type: TransactionType;
   amount: number;
+  adjustmentDirection?: AdjustmentDirection;
   categoryId: string;
   walletId: string;
   sourceWalletId?: string;
