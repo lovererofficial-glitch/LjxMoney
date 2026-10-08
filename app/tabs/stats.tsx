@@ -6,7 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FinanceBarChart, type FinanceChartPoint } from '../../src/components/FinanceBarChart';
 import {
-  calculateNetCashFlow,
+  calculateOpeningBalanceForDate,
+  calculateWalletBalances,
   getCategoryIncome,
   getCategorySpending,
   getDailyBalanceSeries,
@@ -21,7 +22,7 @@ import {
 } from '../../src/features/finance/financeEngine';
 import type { StatisticsPeriod } from '../../src/features/finance/models';
 import { formatLocalizedCurrency, formatLocalizedDate } from '../../src/i18n/formatting';
-import { localizeCategoryName, localizeShortWeekday, useI18n } from '../../src/i18n';
+import { localizeCategoryName, localizeShortWeekday, localizeWalletName, useI18n } from '../../src/i18n';
 import type { TranslationKey } from '../../src/i18n';
 import { useFinanceStore } from '../../src/store/financeStore';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
@@ -66,17 +67,22 @@ export default function StatsScreen() {
     () => getDailyExpenseSeries(periodTransactions, startDate, endDate),
     [endDate, periodTransactions, startDate],
   );
-  const openingBalance = useMemo(() => {
-    const priorTransactions = transactions.filter((transaction) => transaction.date < startDate);
-    return (
-      wallets.reduce((total, wallet) => total + wallet.initialBalance, 0) +
-      calculateNetCashFlow(priorTransactions)
-    );
-  }, [startDate, transactions, wallets]);
+  const openingBalance = useMemo(
+    () => calculateOpeningBalanceForDate(startDate, transactions, wallets),
+    [startDate, transactions, wallets],
+  );
   const dailyBalances = useMemo(
     () => getDailyBalanceSeries(periodTransactions, range.start, range.end, openingBalance),
     [openingBalance, periodTransactions, range.end, range.start],
   );
+  const walletBalances = useMemo(() => calculateWalletBalances(transactions, wallets), [transactions, wallets]);
+  const currentNetWorth = useMemo(
+    () => Object.values(walletBalances).reduce((total, balance) => total + balance, 0),
+    [walletBalances],
+  );
+  const periodOpeningNetWorth = dailyBalances[0]?.openingBalance ?? openingBalance;
+  const periodClosingNetWorth = dailyBalances.at(-1)?.closingBalance ?? periodOpeningNetWorth;
+  const periodNetWorthChange = periodClosingNetWorth - periodOpeningNetWorth;
   const categorySpending = useMemo(
     () => getCategorySpending(periodTransactions, categories),
     [categories, periodTransactions],
@@ -226,6 +232,20 @@ export default function StatsScreen() {
           <Text style={styles.navText}>›</Text>
         </Pressable>
       </View>
+      <View style={styles.netWorthCard}>
+        <Text style={styles.netWorthLabel}>{t('statistics.netWorth')}</Text>
+        <Text style={styles.netWorthValue}>{formatLocalizedCurrency(currentNetWorth, language)}</Text>
+        <View style={styles.netWorthMeta}>
+          <Text style={styles.netWorthMetaLabel}>{t('statistics.periodChange')}</Text>
+          <Text style={[styles.netWorthChange, periodNetWorthChange < 0 ? styles.expense : styles.income]}>
+            {periodNetWorthChange > 0 ? '+' : periodNetWorthChange < 0 ? '−' : ''}
+            {formatLocalizedCurrency(Math.abs(periodNetWorthChange), language)}
+          </Text>
+        </View>
+        <Text style={styles.netWorthStarting}>
+          {t('statistics.periodStartingWorth')}: {formatLocalizedCurrency(periodOpeningNetWorth, language)}
+        </Text>
+      </View>
       <View style={styles.summaryGrid}>
         <SummaryCard label={t('statistics.income')} value={income} tone="income" language={language} />
         <SummaryCard label={t('statistics.expense')} value={expense} tone="expense" language={language} />
@@ -235,6 +255,24 @@ export default function StatsScreen() {
         <ActivityMetric label={t('statistics.transfers')} value={formatLocalizedCurrency(summary.transferTotal, language)} />
         <ActivityMetric label={t('statistics.adjustments')} value={formatLocalizedCurrency(summary.adjustmentTotal, language)} />
         <ActivityMetric label={t('statistics.transactionCount')} value={String(summary.transactionCount)} />
+      </View>
+      <View style={styles.listCard}>
+        <Text style={styles.sectionTitle}>{t('statistics.walletAllocation')}</Text>
+        {wallets.length ? wallets.map((wallet) => (
+          <View key={wallet.id} style={styles.metricRow}>
+            <View style={styles.metricHeader}>
+              <View style={styles.nameWrap}>
+                <View style={[styles.dot, { backgroundColor: wallet.color }]} />
+                <Text style={styles.metricName} numberOfLines={1}>
+                  {localizeWalletName(wallet.id, wallet.name, t)}{wallet.archivedAt ? ` · ${t('wallet.archived')}` : ''}
+                </Text>
+              </View>
+              <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+                {formatLocalizedCurrency(walletBalances[wallet.id] ?? 0, language)}
+              </Text>
+            </View>
+          </View>
+        )) : <Text style={styles.emptyText}>{t('statistics.noNetWorthData')}</Text>}
       </View>
       <View style={styles.comparisonCard}>
         <Text style={styles.sectionTitle}>
@@ -246,7 +284,7 @@ export default function StatsScreen() {
       </View>
 
       <FinanceBarChart
-        title={t('statistics.balanceOverTime')}
+        title={t('statistics.netWorthTrend')}
         points={balancePoints}
         primaryColor={colors.accent}
         valueFormatter={(value) => formatLocalizedCurrency(value, language)}
@@ -389,6 +427,20 @@ const styles = StyleSheet.create({
   navButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: radius.md, backgroundColor: colors.surface },
   navText: { color: colors.accent, fontSize: 25, lineHeight: 28 },
   rangeText: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  netWorthCard: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+  },
+  netWorthLabel: { color: colors.textSecondary, fontSize: typography.caption, fontWeight: '700' },
+  netWorthValue: { color: colors.text, fontSize: typography.title, fontWeight: '800', marginTop: spacing.xs },
+  netWorthMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md },
+  netWorthMetaLabel: { color: colors.textSecondary, fontSize: 13 },
+  netWorthChange: { fontSize: 14, fontWeight: '700' },
+  netWorthStarting: { color: colors.textSecondary, fontSize: 12, marginTop: spacing.xs },
   summaryGrid: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   activitySummary: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   activityMetric: { flex: 1, minWidth: 0, minHeight: 70, justifyContent: 'center', backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.sm },

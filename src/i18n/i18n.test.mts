@@ -75,6 +75,15 @@ test('transaction search empty state is localized separately from the no-transac
   assert.equal(translate('en', 'empty.noTransactions'), 'No transactions yet');
 });
 
+test('Net Worth labels are localized in Vietnamese and English', () => {
+  assert.equal(translate('vi', 'statistics.netWorth'), 'Tổng tài sản');
+  assert.equal(translate('vi', 'statistics.periodChange'), 'Thay đổi trong kỳ đã chọn');
+  assert.equal(translate('vi', 'statistics.walletAllocation'), 'Phân bổ tài sản theo ví');
+  assert.equal(translate('en', 'statistics.netWorth'), 'Net Worth');
+  assert.equal(translate('en', 'statistics.periodChange'), 'Change in selected period');
+  assert.equal(translate('en', 'statistics.walletAllocation'), 'Assets by wallet');
+});
+
 test('sync error labels are localized in both languages', () => {
   assert.equal(translate('vi', 'sync.details'), 'Chi tiết:');
   assert.equal(translate('vi', 'sync.retry'), 'Thử lại');

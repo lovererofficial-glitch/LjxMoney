@@ -13,6 +13,7 @@ import {
   calculateTransferTotal,
   calculateStreakSummary,
   calculateWalletBalance,
+  calculateWalletBalances,
   getCategoryIncome,
   getCategorySpending,
   getDailyBalanceSeries,
@@ -192,6 +193,62 @@ test('statistics period ranges cover day, week, month, and year', () => {
   assert.equal(year.start.getDate(), 1);
   assert.equal(year.end.getMonth(), 11);
   assert.equal(year.end.getDate(), 31);
+});
+
+test('Net Worth derives from all wallet balances including archived wallet history', () => {
+  const archivedWallets = wallets.map((wallet) =>
+    wallet.id === 'bank' ? { ...wallet, archivedAt: '2026-10-04T00:00:00.000Z' } : wallet,
+  );
+  const transactions = [
+    makeTransaction('income', 'income', 2_000_000, '2026-10-02', 'cash'),
+    makeTransaction('expense', 'expense', 1_000_000, '2026-10-03', 'cash'),
+    makeTransfer('transfer', 3_000_000, '2026-10-04'),
+    { ...makeTransaction('adjust-up', 'adjustment', 1_000_000, '2026-10-05', 'bank'), adjustmentDirection: 'increase' as const },
+    { ...makeTransaction('adjust-down', 'adjustment', 500_000, '2026-10-06', 'cash'), adjustmentDirection: 'decrease' as const },
+  ];
+  const balances = calculateWalletBalances(transactions, archivedWallets);
+  const currentNetWorth = Object.values(balances).reduce((total, balance) => total + balance, 0);
+
+  assert.equal(balances.cash, 7_500_000);
+  assert.equal(balances.bank, 9_000_000);
+  assert.equal(currentNetWorth, 16_500_000);
+  assert.equal(
+    Object.values(calculateWalletBalances([makeTransfer('net-neutral-transfer', 2_000_000, '2026-10-07')], archivedWallets))
+      .reduce((total, balance) => total + balance, 0),
+    15_000_000,
+  );
+});
+
+test('historical Net Worth series follows daily transactions while transfers stay neutral', () => {
+  const transactions = [
+    makeTransaction('period-income', 'income', 2_000_000, '2026-10-02'),
+    makeTransaction('period-expense', 'expense', 500_000, '2026-10-03'),
+    makeTransfer('period-transfer', 1_000_000, '2026-10-04'),
+    { ...makeTransaction('period-adjustment', 'adjustment', 1_000_000, '2026-10-04'), adjustmentDirection: 'increase' as const },
+  ];
+  const openingNetWorth = wallets.reduce((total, wallet) => total + wallet.initialBalance, 0);
+  const series = getDailyBalanceSeries(transactions, '2026-10-01', '2026-10-04', openingNetWorth);
+  const periodChange = (series.at(-1)?.closingBalance ?? openingNetWorth) -
+    (series[0]?.openingBalance ?? openingNetWorth);
+
+  assert.deepEqual(series.map((day) => day.closingBalance), [15_000_000, 17_000_000, 16_500_000, 17_500_000]);
+  assert.equal(series[3]?.closingBalance, 17_500_000);
+  assert.equal(periodChange, 2_500_000);
+});
+
+test('Net Worth period change remains an absolute value when beginning worth is zero', () => {
+  const series = getDailyBalanceSeries(
+    [makeTransaction('first-income', 'income', 500_000, '2026-10-01')],
+    '2026-10-01',
+    '2026-10-01',
+    0,
+  );
+  const beginning = series[0]?.openingBalance ?? 0;
+  const ending = series.at(-1)?.closingBalance ?? beginning;
+
+  assert.equal(beginning, 0);
+  assert.equal(ending, 500_000);
+  assert.equal(ending - beginning, 500_000);
 });
 
 test('historical transfer add, edit, and delete recalculate balance chain without changing total', () => {
