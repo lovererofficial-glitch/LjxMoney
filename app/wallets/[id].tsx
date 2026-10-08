@@ -12,7 +12,11 @@ import { getDisplayAmount, useSecurityStore } from '../../src/security/securityS
 import { requestSyncNow } from '../../src/sync/syncRuntime';
 import { useFinanceStore } from '../../src/store/financeStore';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
-import { useWalletQrStore } from '../../src/wallets/walletQrStore';
+import {
+  useWalletQrStore,
+  walletQrNeedsRemoteRestore,
+  walletQrWasRemovedRemotely,
+} from '../../src/wallets/walletQrStore';
 import {
   deleteWalletQrFromCloud,
   downloadWalletQr,
@@ -79,11 +83,15 @@ export default function WalletDetailScreen() {
         await clearQrForWallet(userId, walletId);
         localUri = null;
       }
+      if (walletQrWasRemovedRemotely(paymentQrPath, localCloudPath, uploadPending) && localUri) {
+        removeLocalWalletQr(userId, walletId, localUri);
+        await clearQrForWallet(userId, walletId);
+        return;
+      }
       if (
-        !paymentQrPath ||
         cancelled ||
-        uploadPending ||
-        (localUri && localCloudPath === paymentQrPath)
+        !paymentQrPath ||
+        !walletQrNeedsRemoteRestore(paymentQrPath, localUri, localCloudPath, uploadPending)
       ) {
         return;
       }

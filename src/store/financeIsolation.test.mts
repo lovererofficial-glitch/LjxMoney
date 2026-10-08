@@ -7,6 +7,7 @@ import type { Transaction, Wallet } from '../features/finance/models.ts';
 import { createFinanceStore } from './financeStoreCore.ts';
 import { createOwnerScopedStorage, financeKeyForOwner } from './financeOwnerStorage.ts';
 import { createFinanceSessionController } from './financeSession.ts';
+import { pruneEmptyLegacyWalletSeeds } from './financeMigration.ts';
 
 type AuthSlice = Pick<AuthState, 'status' | 'user'>;
 
@@ -38,6 +39,20 @@ const makeTransaction = (id: string, amount: number): Transaction => ({
   createdAt: '2026-10-01T12:00:00.000Z',
   updatedAt: '2026-10-01T12:00:00.000Z',
 });
+
+const addCashWallet = (store: ReturnType<typeof createFinanceStore>) => {
+  const now = '2026-10-01T00:00:00.000Z';
+  store.getState().addWallet({
+    id: 'cash',
+    name: 'Cash',
+    type: 'cash',
+    color: '#68E1FD',
+    initialBalance: 0,
+    archivedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+};
 
 const flush = async (rounds = 8): Promise<void> => {
   for (let i = 0; i < rounds; i += 1) {
@@ -125,6 +140,7 @@ test('logout clears user data from memory immediately', async () => {
   await harness.financeStore.persist.rehydrate();
   harness.setAuth(loginAs('user-a', 'a@example.com'));
   await flush();
+  addCashWallet(harness.financeStore);
   harness.financeStore.getState().addTransaction(makeTransaction('txn-a', 1000));
   await flush();
   assert.equal(harness.financeStore.getState().transactions.length, 1);
@@ -140,6 +156,7 @@ test('user B never sees user A data', async () => {
   await harness.financeStore.persist.rehydrate();
   harness.setAuth(loginAs('user-a', 'a@example.com'));
   await flush();
+  addCashWallet(harness.financeStore);
   harness.financeStore.getState().addTransaction(makeTransaction('txn-a', 1000));
   await flush();
 
@@ -148,11 +165,13 @@ test('user B never sees user A data', async () => {
   harness.setAuth(loginAs('user-b', 'b@example.com'));
   await flush();
 
+  assert.deepEqual(harness.financeStore.getState().wallets, []);
   assert.deepEqual(
     harness.financeStore.getState().transactions.map((item) => item.id),
     [],
   );
 
+  addCashWallet(harness.financeStore);
   harness.financeStore.getState().addTransaction(makeTransaction('txn-b', 500));
   await flush();
   const aRaw = await harness.storage.getItem(financeKeyForOwner('user-a'));
@@ -276,6 +295,7 @@ test('budgets remain private across account switches', async () => {
 test('guest data migrates to first account once, never leaks to second', async () => {
   const harness = makeHarness();
   await harness.financeStore.persist.rehydrate();
+  addCashWallet(harness.financeStore);
   harness.financeStore.getState().addTransaction(makeTransaction('guest-txn', 250));
   await flush();
   const guestRaw = await harness.storage.getItem(financeKeyForOwner(null));
@@ -294,6 +314,38 @@ test('guest data migrates to first account once, never leaks to second', async (
   assert.ok(
     !harness.financeStore.getState().transactions.some((item) => item.id === 'guest-txn'),
   );
+});
+
+test('guest migration prunes only empty legacy wallet seeds and keeps data-backed wallets', async () => {
+  const harness = makeHarness();
+  await harness.financeStore.persist.rehydrate();
+  const guestSnapshot = JSON.stringify({
+    state: {
+      transactions: [],
+      categories: [],
+      wallets: [
+        { id: 'cash', name: 'Cash', type: 'cash', color: '#68E1FD', initialBalance: 0 },
+        { id: 'bank', name: 'Bank', type: 'bank', color: '#3DD598', initialBalance: 0 },
+        { id: 'momo', name: 'MoMo', type: 'ewallet', color: '#C084FC', initialBalance: 0, paymentQrPath: 'user-a/momo/payment-qr-v1' },
+        { id: 'custom', name: 'Custom', type: 'other', color: '#D7B56D', initialBalance: 0 },
+      ],
+      budgets: [],
+      goals: [],
+      goalContributions: [],
+      streak: { completionDates: [], manualCompletionDates: [], longestStreak: 0 },
+    },
+    version: 2,
+  });
+  const pruned = JSON.parse(pruneEmptyLegacyWalletSeeds(guestSnapshot)) as {
+    state: { wallets: Wallet[] };
+  };
+  assert.deepEqual(pruned.state.wallets.map((wallet) => wallet.id), ['momo', 'custom']);
+
+  await harness.storage.setItem(financeKeyForOwner(null), guestSnapshot);
+  harness.setAuth(loginAs('user-a', 'a@example.com'));
+  await flush();
+  assert.deepEqual(harness.financeStore.getState().wallets.map((wallet) => wallet.id), ['momo', 'custom']);
+  assert.equal(harness.financeStore.getState().wallets.find((wallet) => wallet.id === 'momo')?.paymentQrPath, 'user-a/momo/payment-qr-v1');
 });
 
 test('stale apply from user A is ignored after switching to user B', async () => {

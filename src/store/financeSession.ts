@@ -1,5 +1,6 @@
 import type { AuthState } from '../auth/authTypes.ts';
 import { financeKeyForOwner, type FinanceOwnerId } from './financeOwnerStorage.ts';
+import { pruneEmptyLegacyWalletSeeds } from './financeMigration.ts';
 
 type FinanceStoreApi = {
   getState: () => {
@@ -70,7 +71,7 @@ export const createFinanceSessionController = (deps: SessionControllerDeps) => {
         ]);
         const guestBase = legacyRaw ?? guestRaw;
         if (!ownerRaw && guestBase) {
-          await deps.writeOwner(ownerId, guestBase);
+          await deps.writeOwner(ownerId, pruneEmptyLegacyWalletSeeds(guestBase));
           await deps.removeLegacy();
           await deps.removeGuest();
         } else if (guestBase) {

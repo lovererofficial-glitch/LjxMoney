@@ -18,7 +18,7 @@ import { translateFinanceError, useI18n } from '../../src/i18n';
 import { useFinanceStore } from '../../src/store/financeStore';
 import { useAuthStore } from '../../src/auth/authStore';
 import { Avatar } from '../../src/profile/Avatar';
-import { useProfileAvatarStore } from '../../src/profile/avatarStore';
+import { resolveProfileDisplayName, useProfileAvatarStore } from '../../src/profile/avatarStore';
 import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
@@ -36,8 +36,9 @@ export default function HomeScreen() {
   const checkToday = useFinanceStore((state) => state.checkToday);
   const authUser = useAuthStore((state) => state.user);
   const avatarUri = useProfileAvatarStore((state) => (authUser ? state.avatars[authUser.id] ?? null : null));
-  const userEmail = authUser?.email ?? 'LjxMoney';
-  const userDisplayName = authUser?.email ? authUser.email.split('@')[0] : 'LjxMoney';
+  const storedDisplayName = useProfileAvatarStore((state) => (authUser ? state.displayNames[authUser.id] ?? null : null));
+  const userEmail = authUser?.email ?? '';
+  const userDisplayName = resolveProfileDisplayName(storedDisplayName, authUser?.email, t('profile.fallbackName'));
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.date === today),
@@ -127,7 +128,7 @@ export default function HomeScreen() {
           />
           <View>
             <Text style={styles.eyebrow}>{formatLocalizedDate(new Date(), 'EEEE, dd MMMM', language)}</Text>
-            <Text style={styles.title}>LjxMoney</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit style={styles.title}>{userDisplayName}</Text>
           </View>
         </View>
         <View style={styles.headerActions}>
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
   loadingLabel: { color: colors.textSecondary, fontSize: 15 },
   content: { paddingHorizontal: spacing.lg },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
-  profileWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
+  profileWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1, minWidth: 0 },
   avatarBubble: {
     width: 42,
     height: 42,
@@ -355,7 +356,7 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   eyebrow: { color: colors.textSecondary, fontSize: 12, marginBottom: 3, letterSpacing: 0.4 },
-  title: { color: colors.text, fontSize: typography.title, fontWeight: '800', letterSpacing: -0.5 },
+  title: { color: colors.text, fontSize: typography.headline, fontWeight: '800', maxWidth: 180 },
   addButton: { minHeight: 46, justifyContent: 'center', backgroundColor: colors.surfaceElevated, borderRadius: radius.md, paddingHorizontal: spacing.md },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   settingsButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.surface },

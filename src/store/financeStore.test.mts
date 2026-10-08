@@ -16,8 +16,12 @@ import {
 } from '../features/finance/financeEngine.ts';
 import type { Budget, GoalContribution, SavingsGoal, Transaction, Wallet } from '../features/finance/models.ts';
 import { findTransactionById, transactionDetailRoute, transactionDetailRouteId } from '../lib/transactionRoutes.ts';
-import { createFinanceStore, registerSyncDeletionListener } from './financeStoreCore.ts';
-import { createWalletQrStore } from '../wallets/walletQrStore.ts';
+import { createFinanceStore as createEmptyFinanceStore, registerSyncDeletionListener } from './financeStoreCore.ts';
+import {
+  createWalletQrStore,
+  walletQrNeedsRemoteRestore,
+  walletQrWasRemovedRemotely,
+} from '../wallets/walletQrStore.ts';
 
 const createMemoryStorage = (): StateStorage => {
   const values = new Map<string, string>();
@@ -89,6 +93,17 @@ const makeWallet = (id: string, initialBalance = 0): Wallet => ({
   createdAt: '2026-10-01T00:00:00.000Z',
   updatedAt: '2026-10-01T00:00:00.000Z',
 });
+
+const createFinanceStore = (storage: StateStorage) => {
+  const store = createEmptyFinanceStore(storage);
+  if (!store.getState().wallets.some((wallet) => wallet.id === 'cash')) {
+    store.getState().addWallet(makeWallet('cash'));
+  }
+  if (!store.getState().wallets.some((wallet) => wallet.id === 'bank')) {
+    store.getState().addWallet(makeWallet('bank'));
+  }
+  return store;
+};
 
 const makeBudget = (): Budget => ({
   id: 'food-budget',
@@ -165,6 +180,42 @@ test('wallet CRUD trims names, rejects duplicates, persists, and keeps valid tim
 
   const restoredFromStorage = createFinanceStore(storage);
   assert.equal(restoredFromStorage.getState().wallets.find((item) => item.id === 'reserve')?.name, 'Emergency fund');
+});
+
+test('new finance state starts with no wallets and keeps only manually added wallets after restore', () => {
+  const storage = createMemoryStorage();
+  const store = createEmptyFinanceStore(storage);
+  assert.deepEqual(store.getState().wallets, []);
+
+  store.getState().addWallet({ ...makeWallet('mb'), name: 'MB', type: 'bank' });
+  assert.deepEqual(store.getState().wallets.map((wallet) => wallet.id), ['mb']);
+  store.getState().addWallet({ ...makeWallet('momo'), name: 'MoMo', type: 'ewallet' });
+  assert.deepEqual(store.getState().wallets.map((wallet) => wallet.id), ['mb', 'momo']);
+
+  const restored = createEmptyFinanceStore(storage);
+  assert.deepEqual(restored.getState().wallets.map((wallet) => wallet.id), ['mb', 'momo']);
+});
+
+test('legacy seed wallet is restored only when saved transaction history references it', async () => {
+  const storage = createMemoryStorage();
+  const transaction = makeTransaction('legacy-cash-expense', 'expense', 50, '2026-10-01');
+  await storage.setItem('ljxmoney-finance-store', JSON.stringify({
+    state: {
+      transactions: [transaction],
+      categories: [],
+      wallets: [],
+      budgets: [],
+      goals: [],
+      goalContributions: [],
+      streak: { completionDates: [], manualCompletionDates: [], longestStreak: 0 },
+    },
+    version: 2,
+  }));
+
+  const restored = createEmptyFinanceStore(storage);
+  await restored.persist.rehydrate();
+  assert.deepEqual(restored.getState().wallets.map((wallet) => wallet.id), ['cash']);
+  assert.equal(restored.getState().transactions[0]?.id, transaction.id);
 });
 
 test('custom wallet name stays independent from wallet type through hydration and edits', () => {
@@ -300,6 +351,17 @@ test('wallet QR store keeps per-wallet images local and isolated by user', async
   assert.equal(await afterLogin.getState().hasPendingQrUpload('user-a', 'wallet-momo'), false);
   await afterLogin.getState().setQrForWallet('user-a', 'wallet-momo', 'file://user-a/replacement.png');
   assert.equal(await afterLogin.getState().getQrCloudPath('user-a', 'wallet-momo'), null);
+});
+
+test('wallet QR sync restores missing remote bytes, replaces versions, and honors remote deletion', () => {
+  assert.equal(walletQrNeedsRemoteRestore('user-a/mb/payment-qr-v2', null, null, false), true);
+  assert.equal(walletQrNeedsRemoteRestore('user-a/mb/payment-qr-v2', 'file://old.png', 'user-a/mb/payment-qr-v1', false), true);
+  assert.equal(walletQrNeedsRemoteRestore('user-a/mb/payment-qr-v1', 'file://current.png', 'user-a/mb/payment-qr-v1', false), false);
+  assert.equal(walletQrNeedsRemoteRestore('user-a/mb/payment-qr-v1', null, null, true), true);
+  assert.equal(walletQrNeedsRemoteRestore('user-a/mb/payment-qr-v1', 'file://pending.png', 'user-a/mb/payment-qr-v1', true), false);
+  assert.equal(walletQrWasRemovedRemotely(null, 'user-a/mb/payment-qr-v1', false), true);
+  assert.equal(walletQrWasRemovedRemotely(null, 'user-a/mb/payment-qr-v1', true), false);
+  assert.equal(walletQrWasRemovedRemotely('user-a/mb/payment-qr-v2', 'user-a/mb/payment-qr-v1', false), false);
 });
 
 test('adjustment transactions persist locally and legacy rows retain increase semantics', () => {

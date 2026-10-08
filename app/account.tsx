@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { router } from 'expo-router';
-import { Suspense, use, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,11 +16,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../src/auth/authStore';
 import { translateAuthError, useI18n } from '../src/i18n';
 import type { TranslationKey } from '../src/i18n';
-import { fetchProfile, saveProfileDisplayName } from '../src/lib/profiles';
-import { getSupabaseClient, isSupabaseConfigured } from '../src/lib/supabase';
+import { isSupabaseConfigured } from '../src/lib/supabase';
+import { requestProfileSyncNow } from '../src/profile/profileSync';
 import { requestSyncNow } from '../src/sync/syncRuntime';
 import { useSyncStatusStore, type SyncPhase } from '../src/sync/syncStatusStore';
 import { useFinanceStore } from '../src/store/financeStore';
+import { resolveProfileDisplayName, useProfileAvatarStore } from '../src/profile/avatarStore';
+import { useWalletQrStore } from '../src/wallets/walletQrStore';
 import { colors, radius, spacing, typography } from '../src/theme/theme';
 
 const phaseKeys: Record<SyncPhase, TranslationKey> = {
@@ -33,54 +35,26 @@ const phaseKeys: Record<SyncPhase, TranslationKey> = {
   blocked: 'sync.statusBlocked',
 };
 
-const loadProfileName = (userId: string): Promise<string> => {
-  const client = getSupabaseClient();
-  if (!client) {
-    return Promise.resolve('');
-  }
-  return fetchProfile(client, userId)
-    .then((profile) => profile.displayName ?? '')
-    .catch((error) => {
-      console.error('Profile could not be loaded.', error);
-      return '';
-    });
-};
-
-const profileNameCache = new Map<string, Promise<string>>();
-
-const getProfileName = (userId: string): Promise<string> => {
-  const cached = profileNameCache.get(userId);
-  if (cached) {
-    return cached;
-  }
-  const pending = loadProfileName(userId);
-  profileNameCache.set(userId, pending);
-  return pending;
-};
-
 function ProfileNameCard({ userId, email }: { userId: string; email: string }) {
   const { t } = useI18n();
-  const initialName = use(getProfileName(userId));
-  const [nameDraft, setNameDraft] = useState(initialName);
-  const [savedName, setSavedName] = useState(initialName);
+  const displayName = useProfileAvatarStore((state) => state.displayNames[userId] ?? null);
+  const setDisplayNameForUser = useProfileAvatarStore((state) => state.setDisplayNameForUser);
+  const [nameDraftState, setNameDraftState] = useState<{ userId: string; value: string } | null>(null);
   const [profileError, setProfileError] = useState('');
+  const nameDraft = nameDraftState?.userId === userId ? nameDraftState.value : displayName ?? '';
 
   const saveName = async () => {
-    const client = getSupabaseClient();
-    if (!client) {
-      return;
-    }
     try {
       setProfileError('');
-      await saveProfileDisplayName(client, userId, nameDraft.trim());
-      setSavedName(nameDraft.trim());
+      await setDisplayNameForUser(userId, nameDraft);
+      requestProfileSyncNow();
     } catch (error) {
       console.error('Display name could not be saved.', error);
       setProfileError(translateAuthError('unknown', t));
     }
   };
 
-  const shownName = savedName || email;
+  const shownName = resolveProfileDisplayName(displayName, email, t('profile.fallbackName'));
 
   return (
     <View style={styles.card}>
@@ -96,8 +70,8 @@ function ProfileNameCard({ userId, email }: { userId: string; email: string }) {
       <Text style={styles.fieldLabel}>{t('auth.displayName')}</Text>
       <View style={styles.nameRow}>
         <TextInput
-          autoCapitalize="none"
-          onChangeText={setNameDraft}
+          autoCapitalize="words"
+          onChangeText={(value) => setNameDraftState({ userId, value })}
           placeholder={t('auth.displayName')}
           placeholderTextColor={colors.textSecondary}
           style={styles.input}
@@ -129,6 +103,8 @@ export default function AccountScreen() {
 
   const handleSignOut = async () => {
     await signOut();
+    useProfileAvatarStore.getState().clearAll();
+    useWalletQrStore.getState().clearAll();
   };
 
   const exportData = async () => {
@@ -203,9 +179,7 @@ export default function AccountScreen() {
 
       {user ? (
         <>
-          <Suspense fallback={<ActivityIndicator color={colors.accent} style={styles.loader} />}>
-            <ProfileNameCard userId={user.id} email={user.email} />
-          </Suspense>
+          <ProfileNameCard userId={user.id} email={user.email} />
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t('sync.cloud')}</Text>

@@ -10,7 +10,11 @@ import { runSyncCycle } from './syncEngine.ts';
 import { createSupabaseSyncRepository } from './syncRepository.ts';
 import { useSyncStatusStore } from './syncStatusStore.ts';
 import { classifySyncError, type SyncEntity, type SyncSnapshot } from './syncTypes.ts';
-import { useWalletQrStore } from '../wallets/walletQrStore.ts';
+import {
+  useWalletQrStore,
+  walletQrNeedsRemoteRestore,
+  walletQrWasRemovedRemotely,
+} from '../wallets/walletQrStore.ts';
 import {
   deleteWalletQrFromCloud,
   downloadWalletQr,
@@ -117,26 +121,32 @@ const syncWalletQrAssets = async (userId: string, isStale: () => boolean) => {
     }
 
     let localCloudPath = await qrStore.getQrCloudPath(userId, wallet.id);
-    if (wallet.paymentQrPath) {
-      if (!uploadPending && (!localUri || localCloudPath !== wallet.paymentQrPath)) {
-        try {
-          const downloadedUri = await downloadWalletQr(userId, wallet.id, wallet.paymentQrPath);
-          if (!isStale() && useAuthStore.getState().user?.id === userId) {
-            await qrStore.setQrForWallet(userId, wallet.id, downloadedUri);
-            await qrStore.setQrCloudPath(userId, wallet.id, wallet.paymentQrPath);
-            localCloudPath = wallet.paymentQrPath;
-            if (localUri && localUri !== downloadedUri) {
-              removeLocalWalletQr(userId, wallet.id, localUri);
-            }
-            localUri = downloadedUri;
+    if (walletQrWasRemovedRemotely(wallet.paymentQrPath, localCloudPath, uploadPending)) {
+      if (localUri) {
+        removeLocalWalletQr(userId, wallet.id, localUri);
+      }
+      await qrStore.clearQrForWallet(userId, wallet.id);
+      localUri = null;
+      localCloudPath = null;
+    }
+    if (walletQrNeedsRemoteRestore(wallet.paymentQrPath, localUri, localCloudPath, uploadPending)) {
+      try {
+        const downloadedUri = await downloadWalletQr(userId, wallet.id, wallet.paymentQrPath!);
+        if (!isStale() && useAuthStore.getState().user?.id === userId) {
+          await qrStore.setQrForWallet(userId, wallet.id, downloadedUri);
+          await qrStore.setQrCloudPath(userId, wallet.id, wallet.paymentQrPath!);
+          localCloudPath = wallet.paymentQrPath!;
+          if (localUri && localUri !== downloadedUri) {
+            removeLocalWalletQr(userId, wallet.id, localUri);
           }
-        } catch {
-          retryNeeded = true;
+          localUri = downloadedUri;
         }
+      } catch {
+        retryNeeded = true;
       }
     }
 
-    if (localUri && (uploadPending || !wallet.paymentQrPath)) {
+    if (localUri && (uploadPending || (!wallet.paymentQrPath && !localCloudPath))) {
       try {
         const paymentQrPath = await uploadWalletQr(userId, wallet.id, localUri);
         if (isStale() || useAuthStore.getState().user?.id !== userId) {

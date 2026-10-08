@@ -24,6 +24,7 @@ const result = spawnSync(
     'src/store/financeIsolation.test.mts',
     'src/lib/formatters.test.mts',
     'src/auth/authStore.test.mts',
+    'src/profile/avatarStore.test.mts',
     'src/sync/syncEngine.test.mts',
   ],
   { stdio: 'inherit' },

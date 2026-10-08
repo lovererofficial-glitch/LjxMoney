@@ -45,6 +45,48 @@ export const normalizeCategory = (category: Category): Category => ({
   updatedAt: category.updatedAt ?? new Date().toISOString(),
 });
 
+export const pruneEmptyLegacyWalletSeeds = (rawSnapshot: string): string => {
+  try {
+    const parsed: unknown = JSON.parse(rawSnapshot);
+    if (typeof parsed !== 'object' || parsed === null) {
+      return rawSnapshot;
+    }
+    const envelope = parsed as Record<string, unknown>;
+    const hasEnvelopeState = typeof envelope.state === 'object' && envelope.state !== null;
+    const state = (hasEnvelopeState ? envelope.state : envelope) as Record<string, unknown>;
+    if (!Array.isArray(state.wallets)) {
+      return rawSnapshot;
+    }
+    const transactions = Array.isArray(state.transactions) ? state.transactions : [];
+    const seedIds = new Set(defaultWallets.map((wallet) => wallet.id));
+    const wallets = state.wallets.filter((value) => {
+      if (typeof value !== 'object' || value === null) {
+        return true;
+      }
+      const wallet = value as Record<string, unknown>;
+      const id = typeof wallet.id === 'string' ? wallet.id : '';
+      if (!seedIds.has(id)) {
+        return true;
+      }
+      const referenced = transactions.some((item) => {
+        if (typeof item !== 'object' || item === null) {
+          return false;
+        }
+        const transaction = item as Record<string, unknown>;
+        return transaction.walletId === id ||
+          transaction.sourceWalletId === id ||
+          transaction.destinationWalletId === id;
+      });
+      const hasQr = typeof wallet.paymentQrPath === 'string' && wallet.paymentQrPath.length > 0;
+      return referenced || wallet.initialBalance !== 0 || hasQr;
+    });
+    const nextState = { ...state, wallets };
+    return JSON.stringify(hasEnvelopeState ? { ...envelope, state: nextState } : nextState);
+  } catch {
+    return rawSnapshot;
+  }
+};
+
 export const migrateFinanceState = (persistedState: unknown): PersistedFinanceData => {
   const persisted =
     typeof persistedState === 'object' && persistedState !== null
@@ -55,7 +97,7 @@ export const migrateFinanceState = (persistedState: unknown): PersistedFinanceDa
   return {
     transactions: persisted.transactions ?? [],
     categories: persisted.categories?.map(normalizeCategory) ?? defaultCategories,
-    wallets: persisted.wallets?.map(normalizeWallet) ?? defaultWallets,
+    wallets: persisted.wallets?.map(normalizeWallet) ?? [],
     budgets: persisted.budgets ?? [],
     goals: persisted.goals ?? [],
     goalContributions: persisted.goalContributions ?? [],

@@ -9,7 +9,7 @@ import { useLanguageStore } from '../src/i18n/runtime';
 import type { Language } from '../src/i18n/types';
 import { useAuthStore } from '../src/auth/authStore';
 import { Avatar } from '../src/profile/Avatar';
-import { useProfileAvatarStore } from '../src/profile/avatarStore';
+import { resolveProfileDisplayName, useProfileAvatarStore } from '../src/profile/avatarStore';
 import { colors, radius, spacing, typography } from '../src/theme/theme';
 import { useSecurityStore } from '../src/security/securityStore';
 
@@ -21,6 +21,8 @@ export default function SettingsScreen() {
   const hydrationError = useLanguageStore((state) => state.hydrationError);
   const authUser = useAuthStore((state) => state.user);
   const avatarUri = useProfileAvatarStore((state) => (authUser ? state.avatars[authUser.id] ?? null : null));
+  const storedDisplayName = useProfileAvatarStore((state) => (authUser ? state.displayNames[authUser.id] ?? null : null));
+  const displayName = resolveProfileDisplayName(storedDisplayName, authUser?.email, t('profile.fallbackName'));
   const isBalanceHidden = useSecurityStore((state) => state.isBalanceHidden);
   const toggleBalanceHidden = useSecurityStore((state) => state.toggleBalanceHidden);
   const appLockEnabled = useSecurityStore((state) => state.appLockEnabled);
@@ -88,13 +90,13 @@ export default function SettingsScreen() {
       <Pressable accessibilityRole="button" onPress={() => router.push('/profile')} style={styles.profileCard}>
         <Avatar
           userEmail={authUser?.email}
-          sourceName={authUser?.email ? authUser.email.split('@')[0] : 'LjxMoney'}
+          sourceName={displayName}
           avatarUri={avatarUri}
           size={52}
           editable
         />
         <View style={styles.profileMeta}>
-          <Text style={styles.profileName}>{authUser?.email ? authUser.email.split('@')[0] : 'LjxMoney'}</Text>
+          <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
           <Text style={styles.profileEmail}>{authUser?.email ?? 'ljxmoney'}</Text>
         </View>
       </Pressable>
@@ -211,7 +213,18 @@ const styles = StyleSheet.create({
   profileName: { color: colors.text, fontSize: 18, fontWeight: '700' },
   profileEmail: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
   sectionHeading: { color: colors.textSecondary, fontSize: 14, fontWeight: '700', marginBottom: spacing.sm },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, paddingHorizontal: spacing.lg },
+  card: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  },
   rowHeading: { minHeight: 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   rowTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
   rowHint: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },

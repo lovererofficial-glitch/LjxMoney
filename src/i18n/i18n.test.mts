@@ -121,6 +121,16 @@ test('language changes do not alter persisted finance data', () => {
   const finance = createFinanceStore(storage);
   const languages = createLanguageStore(storage);
   const now = '2026-10-06T12:00:00.000Z';
+  finance.getState().addWallet({
+    id: 'cash',
+    name: 'Cash',
+    type: 'cash',
+    color: '#68E1FD',
+    initialBalance: 0,
+    archivedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  });
   finance.getState().addTransaction({
     id: 'kept-transaction',
     type: 'income',

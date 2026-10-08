@@ -21,11 +21,13 @@ import {
 } from '../src/store/financeStore';
 import { createFinanceSessionController } from '../src/store/financeSession';
 import { AppLockGate } from '../src/security/AppLockGate';
+import { startProfileRuntime } from '../src/profile/profileSync';
 
 export default function RootLayout() {
   useEffect(() => {
     // Local-first: auth restore + sync start after mount and never block render.
     startSyncRuntime();
+    startProfileRuntime();
     // Bind the in-memory finance dataset to the active account (guest/A/B).
     const stopSession = createFinanceSessionController({
       financeStore: useFinanceStore,

@@ -4,6 +4,23 @@ import type { StateStorage } from 'zustand/middleware';
 
 export const walletQrKeyForUserWallet = (userId: string, walletId: string) =>
   `ljxmoney.wallet.paymentQr.${userId}.${walletId}`;
+
+export const walletQrNeedsRemoteRestore = (
+  remotePath: string | null | undefined,
+  localUri: string | null,
+  localCloudPath: string | null,
+  uploadPending: boolean,
+) => Boolean(
+  remotePath &&
+  (!uploadPending || !localUri) &&
+  (!localUri || localCloudPath !== remotePath),
+);
+
+export const walletQrWasRemovedRemotely = (
+  remotePath: string | null | undefined,
+  localCloudPath: string | null,
+  uploadPending: boolean,
+) => Boolean(localCloudPath && !remotePath && !uploadPending);
 const walletQrDeleteKeyForUserWallet = (userId: string, walletId: string) =>
   `${walletQrKeyForUserWallet(userId, walletId)}.pending-delete`;
 const walletQrUploadKeyForUserWallet = (userId: string, walletId: string) =>

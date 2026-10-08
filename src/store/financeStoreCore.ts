@@ -260,7 +260,7 @@ export const createFinanceStore = (storage: StateStorage) =>
       transactions: [],
       balances: [],
       categories: defaultCategories,
-      wallets: defaultWallets,
+      wallets: [],
       budgets: [],
       goals: [],
       goalContributions: [],
@@ -621,7 +621,7 @@ export const createFinanceStore = (storage: StateStorage) =>
           transactions: [],
           balances: [],
           categories: defaultCategories,
-          wallets: defaultWallets,
+          wallets: [],
           budgets: [],
           goals: [],
           goalContributions: [],
@@ -651,7 +651,7 @@ export const createFinanceStore = (storage: StateStorage) =>
         ];
         const wallets = [
           ...state.wallets,
-          ...legacyWallets.filter(
+          ...[...legacyWallets, ...defaultWallets].filter(
             (wallet) =>
               transactions.some(
                 (transaction) =>

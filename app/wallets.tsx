@@ -29,6 +29,7 @@ export default function WalletsScreen() {
 
   const activeWallets = useMemo(() => wallets.filter((wallet) => !wallet.archivedAt), [wallets]);
   const archivedWallets = useMemo(() => wallets.filter((wallet) => wallet.archivedAt), [wallets]);
+  const hasNoWallets = activeWallets.length === 0 && archivedWallets.length === 0;
 
   const totalBalance = useMemo(() => {
     let total = 0;
@@ -111,32 +112,51 @@ export default function WalletsScreen() {
           <View style={styles.totalRule} />
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('wallet.active')}</Text>
-          <View style={styles.list}>
-            {activeWallets.length ? activeWallets.map((wallet) => renderWallet(wallet)) : (
-              <Text style={styles.emptyText}>{t('wallet.noActiveWallets')}</Text>
-            )}
+        {hasNoWallets ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyMark}><Text style={styles.emptyMarkText}>+</Text></View>
+            <Text style={styles.emptyTitle}>{t('wallet.emptyTitle')}</Text>
+            <Text style={styles.emptyDescription}>{t('wallet.emptyDescription')}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/wallets/new')}
+              style={({ pressed }) => [styles.emptyAddButton, pressed && styles.actionPressed]}
+            >
+              <Text style={styles.emptyAddLabel}>+ {t('wallet.addWallet')}</Text>
+            </Pressable>
           </View>
-        </View>
+        ) : (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('wallet.active')}</Text>
+              <View style={styles.list}>
+                {activeWallets.length ? activeWallets.map((wallet) => renderWallet(wallet)) : (
+                  <Text style={styles.emptyText}>{t('wallet.noActiveWallets')}</Text>
+                )}
+              </View>
+            </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('wallet.archived')}</Text>
-          <View style={styles.list}>
-            {archivedWallets.length ? archivedWallets.map((wallet) => renderWallet(wallet, true)) : (
-              <Text style={styles.emptyText}>{t('wallet.noArchivedWallets')}</Text>
-            )}
-          </View>
-        </View>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('wallet.archived')}</Text>
+              <View style={styles.list}>
+                {archivedWallets.length ? archivedWallets.map((wallet) => renderWallet(wallet, true)) : (
+                  <Text style={styles.emptyText}>{t('wallet.noArchivedWallets')}</Text>
+                )}
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
 
-      <Pressable
-        onPress={() => router.push('/wallets/new')}
-        accessibilityRole="button"
-        style={({ pressed }) => [styles.addButton, pressed && styles.fabPressed]}
-      >
-        <Text style={styles.fabIcon}>{t('wallet.addAction')}</Text>
-      </Pressable>
+      {!hasNoWallets ? (
+        <Pressable
+          onPress={() => router.push('/wallets/new')}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.addButton, pressed && styles.fabPressed]}
+        >
+          <Text style={styles.fabIcon}>{t('wallet.addAction')}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -159,6 +179,16 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
     marginBottom: spacing.md,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 3,
   },
   totalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
   totalLabel: {
@@ -192,6 +222,40 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
     color: colors.textSecondary,
   },
+  emptyState: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxl,
+    marginTop: spacing.md,
+  },
+  emptyMark: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.lg,
+  },
+  emptyMarkText: { color: colors.accent, fontSize: 28, fontWeight: '500' },
+  emptyTitle: { color: colors.text, fontSize: typography.headline, fontWeight: '700', textAlign: 'center' },
+  emptyDescription: { color: colors.textSecondary, fontSize: typography.body, lineHeight: 22, textAlign: 'center', marginTop: spacing.sm },
+  emptyAddButton: {
+    minHeight: 48,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: radius.md,
+    backgroundColor: colors.accent,
+    marginTop: spacing.xl,
+  },
+  emptyAddLabel: { color: colors.background, fontSize: typography.body, fontWeight: '700' },
   section: {
     marginBottom: spacing.lg,
   },
@@ -202,8 +266,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   list: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
@@ -211,8 +278,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     minHeight: 76,
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   archivedRow: {
     opacity: 0.7,
@@ -271,6 +340,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.sm,
+    backgroundColor: colors.surfaceElevated,
   },
   textAction: {
     minHeight: 28,
