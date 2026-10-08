@@ -143,6 +143,22 @@ test('wallet CRUD trims names, rejects duplicates, persists, and keeps valid tim
   assert.equal(restoredFromStorage.getState().wallets.find((item) => item.id === 'reserve')?.name, 'Emergency fund');
 });
 
+test('custom wallet name stays independent from wallet type through hydration and edits', () => {
+  const storage = createMemoryStorage();
+  const store = createFinanceStore(storage);
+  store.getState().addWallet({ ...makeWallet('wallet-mb'), name: 'MB', type: 'bank' });
+
+  const hydratedStore = createFinanceStore(storage);
+  const restored = hydratedStore.getState().wallets.find((wallet) => wallet.id === 'wallet-mb');
+  assert.equal(restored?.name, 'MB');
+  assert.equal(restored?.type, 'bank');
+
+  hydratedStore.getState().updateWallet('wallet-mb', { type: 'ewallet' });
+  const updated = createFinanceStore(storage).getState().wallets.find((wallet) => wallet.id === 'wallet-mb');
+  assert.equal(updated?.name, 'MB');
+  assert.equal(updated?.type, 'ewallet');
+});
+
 test('archived wallets reject new transactions but preserve historical edits and balances', () => {
   const store = createFinanceStore(createMemoryStorage());
   const wallet = makeWallet('archive-me', 2_000);

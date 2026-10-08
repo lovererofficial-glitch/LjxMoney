@@ -66,7 +66,7 @@ export default function WalletsScreen() {
         <Text style={[styles.walletGlyph, { color: wallet.color }]}>{WALLET_GLYPHS[wallet.icon ?? 'wallet'] ?? '$'}</Text>
       </View>
       <View style={styles.rowContent}>
-        <Text numberOfLines={1} style={styles.rowName}>{localizeWalletName(wallet.type, wallet.name, t)}</Text>
+        <Text numberOfLines={1} style={styles.rowName}>{localizeWalletName(wallet.id, wallet.name, t)}</Text>
         <Text style={styles.rowType}>{localizeWalletType(wallet.type, t)}{archived ? ` · ${t('wallet.archived')}` : ''}</Text>
       </View>
       <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.rowBalance, archived && styles.rowBalanceDisabled]}>

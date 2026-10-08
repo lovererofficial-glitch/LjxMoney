@@ -117,7 +117,7 @@ export default function HomeScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('common.settings')}
-            onPress={() => router.push('/settings')}
+            onPress={() => router.push('/tabs/settings')}
             style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}
           >
             <Text style={styles.settingsLabel}>⚙</Text>
@@ -241,7 +241,7 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.recentTransactions')}</Text>
-          <Pressable onPress={() => router.push('/(tabs)/transactions')}>
+          <Pressable onPress={() => router.push('/tabs/transactions')}>
             <Text style={styles.viewAll}>{t('common.viewAll')}</Text>
           </Pressable>
         </View>
@@ -262,9 +262,9 @@ export default function HomeScreen() {
         )}
       </View>
       <View style={styles.manageRow}>
-        <Pressable onPress={() => router.push('/wallets')}><Text style={styles.manageLabel}>{t('wallet.wallets')}</Text></Pressable>
+        <Pressable onPress={() => router.push('/tabs/wallets')}><Text style={styles.manageLabel}>{t('wallet.wallets')}</Text></Pressable>
         <Pressable onPress={() => router.push('/categories')}><Text style={styles.manageLabel}>{t('category.categories')}</Text></Pressable>
-        <Pressable onPress={() => router.push('/(tabs)/stats')}><Text style={styles.manageLabel}>{t('navigation.statistics')}</Text></Pressable>
+        <Pressable onPress={() => router.push('/tabs/stats')}><Text style={styles.manageLabel}>{t('navigation.statistics')}</Text></Pressable>
       </View>
     </ScrollView>
   );

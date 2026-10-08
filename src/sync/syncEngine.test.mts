@@ -195,6 +195,22 @@ test('cloud data downloads to an empty device (new device restore)', async () =>
   assert.equal(local.transactions[0].id, 'txn-1');
 });
 
+test('wallet custom name and type survive cloud sync and restore independently', async () => {
+  const upload = makeHarness();
+  const local = withBaseData(emptySnapshot());
+  local.wallets = [{ ...wallet('wallet-mb'), name: 'MB', type: 'bank' }];
+  upload.setLocal(local);
+  await runSyncCycle(upload.deps);
+  assert.equal(upload.cloud.tables.wallets.get('wallet-mb')?.name, 'MB');
+  assert.equal(upload.cloud.tables.wallets.get('wallet-mb')?.type, 'bank');
+
+  const restore = makeHarness();
+  restore.cloud.tables.wallets.set('wallet-mb', structuredClone(upload.cloud.tables.wallets.get('wallet-mb')!));
+  await runSyncCycle(restore.deps);
+  assert.equal(restore.getLocal().wallets[0]?.name, 'MB');
+  assert.equal(restore.getLocal().wallets[0]?.type, 'bank');
+});
+
 test('offline changes keep local data untouched and fail as offline', async () => {
   const harness = makeHarness();
   harness.setLocal(withBaseData(emptySnapshot()));

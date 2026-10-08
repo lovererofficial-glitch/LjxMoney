@@ -201,7 +201,7 @@ export default function StatsScreen() {
           <Text style={styles.eyebrow}>{t('statistics.overview')}</Text>
           <Text style={styles.title}>{t('statistics.title')}</Text>
         </View>
-        <Pressable onPress={() => router.push('/wallets')} style={styles.secondaryButton}>
+        <Pressable onPress={() => router.push('/tabs/wallets')} style={styles.secondaryButton}>
           <Text style={styles.secondaryLabel}>{t('wallet.wallets')}</Text>
         </Pressable>
       </View>

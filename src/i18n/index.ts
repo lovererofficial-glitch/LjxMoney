@@ -5,6 +5,7 @@ import { translate } from './translate';
 import type { TranslationKey, TranslationParams } from './translate';
 
 export { translate } from './translate';
+export { localizeWalletName } from './walletLocalization';
 export type { TranslationKey, TranslationParams } from './translate';
 
 export const useI18n = () => {
@@ -37,27 +38,12 @@ const categoryTranslationKeys: Record<string, TranslationKey> = {
   'other-income': 'category.otherIncome',
 };
 
-const walletTranslationKeys: Record<string, TranslationKey> = {
-  cash: 'wallet.cash',
-  bank: 'wallet.bank',
-  momo: 'wallet.momo',
-};
-
 export const localizeCategoryName = (
   id: string,
   name: string,
   t: (key: TranslationKey, params?: TranslationParams) => string,
 ) => {
   const key = categoryTranslationKeys[id];
-  return key ? t(key) : name;
-};
-
-export const localizeWalletName = (
-  id: string,
-  name: string,
-  t: (key: TranslationKey, params?: TranslationParams) => string,
-) => {
-  const key = walletTranslationKeys[id];
   return key ? t(key) : name;
 };
 

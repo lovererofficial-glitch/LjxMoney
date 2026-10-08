@@ -163,7 +163,7 @@ export default function AccountScreen() {
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/settings'))}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/tabs/settings'))}
           style={styles.backButton}
         >
           <Text style={styles.back}>{t('common.back')}</Text>

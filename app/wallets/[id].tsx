@@ -83,7 +83,7 @@ export default function WalletDetailScreen() {
       <View style={styles.headerRow}>
         <View style={[styles.colorBadge, { backgroundColor: wallet.color }]} />
         <View style={styles.headerContent}>
-          <Text style={styles.title}>{localizeWalletName(wallet.type, wallet.name, t)}</Text>
+          <Text style={styles.title}>{localizeWalletName(wallet.id, wallet.name, t)}</Text>
           <Text style={styles.subtitle}>{localizeWalletType(wallet.type, t)}</Text>
         </View>
       </View>
@@ -110,7 +110,7 @@ export default function WalletDetailScreen() {
         </View>
         <View style={styles.informationRow}>
           <Text style={styles.informationLabel}>{t('wallet.name')}</Text>
-          <Text style={styles.informationValue}>{localizeWalletName(wallet.type, wallet.name, t)}</Text>
+          <Text style={styles.informationValue}>{localizeWalletName(wallet.id, wallet.name, t)}</Text>
         </View>
       </View>
 

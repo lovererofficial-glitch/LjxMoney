@@ -9,6 +9,7 @@ import { createFinanceStore } from '../store/financeStoreCore.ts';
 import type { Language } from './types.ts';
 import { formatVndInput } from '../lib/formatters.ts';
 import { parseISO } from 'date-fns';
+import { localizeWalletName } from './walletLocalization.ts';
 
 const createMemoryStorage = () => {
   const values = new Map<string, string>();
@@ -42,6 +43,18 @@ test('translation dictionaries provide both languages and interpolate variables'
   assert.equal(translate('vi', 'common.days', { count: 4 }), '4 ngày');
   assert.equal(translate('en', 'common.days', { count: 4 }), '4 days');
   assert.throws(() => translate('en', 'common.days'), /Missing "count" interpolation/);
+});
+
+test('custom wallet names are never replaced by their wallet type translation', () => {
+  const wallet = { id: 'wallet-mb', name: 'MB', type: 'bank' as const };
+  const vi = (key: Parameters<typeof translate>[1]) => translate('vi', key);
+  const en = (key: Parameters<typeof translate>[1]) => translate('en', key);
+
+  assert.equal(localizeWalletName(wallet.id, wallet.name, vi), 'MB');
+  assert.equal(localizeWalletName(wallet.id, wallet.name, en), 'MB');
+  assert.equal(localizeWalletName('bank', wallet.name, vi), 'MB');
+  assert.equal(localizeWalletName('bank', 'Bank', vi), 'Ngân hàng');
+  assert.equal(translate('vi', 'wallet.bank'), 'Ngân hàng');
 });
 
 test('sync error labels are localized in both languages', () => {
