@@ -1,11 +1,11 @@
 import { addDays, format, parseISO } from 'date-fns';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatLocalizedDate } from '../src/i18n/formatting';
-import { translateFinanceError, useI18n } from '../src/i18n';
+import { useI18n } from '../src/i18n';
 import { calculateStreakSummary } from '../src/features/finance/financeEngine';
 import { useFinanceStore } from '../src/store/financeStore';
 import { colors, radius, spacing } from '../src/theme/theme';
@@ -16,7 +16,6 @@ export default function StreakScreen() {
   const insets = useSafeAreaInsets();
   const { language, t } = useI18n();
   const streak = useFinanceStore((state) => state.streak);
-  const checkToday = useFinanceStore((state) => state.checkToday);
   const hasHydrated = useFinanceStore((state) => state.hasHydrated);
   const today = format(new Date(), 'yyyy-MM-dd');
   const summary = useMemo(() => calculateStreakSummary(streak), [streak]);
@@ -27,14 +26,6 @@ export default function StreakScreen() {
     ),
     [],
   );
-
-  const handleCheckIn = () => {
-    try {
-      checkToday(today);
-    } catch (error) {
-      Alert.alert(t('dialog.checkInFailed'), translateFinanceError(error, t, 'dialog.tryAgain'));
-    }
-  };
 
   if (!hasHydrated) {
     return (
@@ -65,13 +56,7 @@ export default function StreakScreen() {
           <StreakMetric label={t('streak.longest')} value={t('common.days', { count: summary.longestStreak })} />
           <StreakMetric label={t('streak.lastCompleted')} value={summary.lastCompletedDate ? formatLocalizedDate(parseISO(summary.lastCompletedDate), 'dd MMM', language) : '—'} />
         </View>
-        {summary.checkedToday ? (
-          <Text style={styles.completed}>{t('streak.todayCompleted')}</Text>
-        ) : (
-          <Pressable accessibilityRole="button" onPress={handleCheckIn} style={styles.checkButton}>
-            <Text style={styles.checkLabel}>{t('streak.checkToday')}</Text>
-          </Pressable>
-        )}
+        {summary.checkedToday ? <Text style={styles.completed}>{t('streak.todayCompleted')}</Text> : null}
       </View>
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>{t('streak.recentActivity')}</Text>
@@ -146,8 +131,6 @@ const styles = StyleSheet.create({
   metricLabel: { color: colors.textSecondary, fontSize: 12 },
   metricValue: { color: colors.text, fontSize: 14, fontWeight: '700', marginTop: 5 },
   completed: { color: colors.income, fontSize: 14, fontWeight: '700', marginTop: spacing.lg },
-  checkButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.accent, marginTop: spacing.lg },
-  checkLabel: { color: colors.background, fontSize: 15, fontWeight: '800' },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
   sectionTitle: { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: spacing.md },
   days: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },

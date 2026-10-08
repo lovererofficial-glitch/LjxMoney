@@ -24,6 +24,16 @@ export const colors = {
   glow: 'rgba(215, 181, 109, 0.16)',
 };
 
+export const streakColors = {
+  gray: '#A3A3A3',
+  lightOrange: '#FFB45C',
+  darkOrange: '#E97824',
+  lightRed: '#FF6672',
+  darkRed: '#D7263D',
+  blue: '#4EA5FF',
+  darkGreen: '#27845A',
+} as const;
+
 export const typography = {
   display: 34,
   title: 28,

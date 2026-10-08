@@ -15,7 +15,6 @@ import {
   normalizeWallet,
 } from './financeMigration.ts';
 import {
-  addStreakCompletion,
   calculateExpense,
   calculateIncome,
   calculateWalletBalanceAt,
@@ -98,7 +97,6 @@ interface FinanceState {
   addGoalContribution: (contribution: GoalContribution) => void;
   updateGoalContribution: (contributionId: string, updates: Partial<GoalContribution>) => void;
   deleteGoalContribution: (contributionId: string) => void;
-  checkToday: (date?: string) => void;
   setHydrationResult: (error: unknown) => void;
   /** Replace state with a reconciled cloud snapshot (no-op when unchanged). */
   applySyncSnapshot: (snapshot: SyncSnapshot) => void;
@@ -576,12 +574,6 @@ export const createFinanceStore = (storage: StateStorage) =>
           goalContributions: state.goalContributions.filter((item) => item.id !== contributionId),
         });
         notifySyncDeletion('goalContributions', contributionId);
-      },
-      checkToday: (date = format(new Date(), 'yyyy-MM-dd')) => {
-        if (!isValidTransactionDate(date)) {
-          throw new Error('Choose a valid check-in date.');
-        }
-        set((state) => ({ streak: addStreakCompletion(state.streak, date) }));
       },
       applySyncSnapshot: (snapshot) => {
         const state = get();

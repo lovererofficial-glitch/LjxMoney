@@ -166,6 +166,7 @@ test('user B never sees user A data', async () => {
   await flush();
 
   assert.deepEqual(harness.financeStore.getState().wallets, []);
+  assert.deepEqual(harness.financeStore.getState().streak.completionDates, []);
   assert.deepEqual(
     harness.financeStore.getState().transactions.map((item) => item.id),
     [],
@@ -219,6 +220,7 @@ test('wallets remain scoped to their owner across logout and account switches', 
   await flush();
   assert.ok(!harness.financeStore.getState().wallets.some((item) => item.id === wallet.id));
   assert.ok(!harness.financeStore.getState().transactions.some((item) => item.id === 'adjustment-a'));
+  assert.deepEqual(harness.financeStore.getState().streak.completionDates, []);
 
   harness.setAuth({ status: 'unauthenticated', user: null });
   await flush();
@@ -226,6 +228,7 @@ test('wallets remain scoped to their owner across logout and account switches', 
   await flush();
   assert.ok(harness.financeStore.getState().wallets.some((item) => item.id === wallet.id));
   assert.ok(harness.financeStore.getState().transactions.some((item) => item.id === 'adjustment-a'));
+  assert.deepEqual(harness.financeStore.getState().streak.completionDates, ['2026-10-01']);
 });
 
 test('user A cannot create a transfer to a wallet that belongs to user B', async () => {

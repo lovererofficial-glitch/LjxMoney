@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  addStreakCompletion,
   calculateBudgetSummary,
   calculateAdjustment,
   calculateDailyBalance,
@@ -40,6 +39,8 @@ import type {
   Wallet,
 } from './models.ts';
 import { migrateFinanceState } from '../../store/financeMigration.ts';
+import { getStreakColor, getStreakTier } from './streakPresentation.ts';
+import { streakColors } from '../../theme/theme.ts';
 
 const makeTransaction = (
   id: string,
@@ -347,42 +348,71 @@ test('period date ranges and comparisons are deterministic, including a zero pre
   assert.equal(comparison.netDelta, 300);
 });
 
-test('streak completion is idempotent, transaction-ready, and preserves longest through a missed day', () => {
-  const dates = ['2026-10-01', '2026-10-02', '2026-10-03'];
-  const state = dates.reduce<StreakState>(
-    (current, date) => addStreakCompletion(current, date),
+test('current streak counts consecutive transaction dates from the latest active day', () => {
+  const empty = syncStreakWithTransactions(
     { completionDates: [], manualCompletionDates: [], longestStreak: 0 },
+    [],
   );
-  const duplicate = addStreakCompletion(state, '2026-10-03');
-  const missedDay = calculateStreakSummary(duplicate, new Date(2026, 9, 5, 12));
+  assert.equal(calculateStreakSummary(empty, new Date(2026, 9, 1, 12)).currentStreak, 0);
 
-  assert.equal(duplicate.completionDates.length, 3);
-  assert.equal(calculateStreakSummary(duplicate, new Date(2026, 9, 3, 12)).checkedToday, true);
-  assert.equal(missedDay.currentStreak, 0);
-  assert.equal(missedDay.longestStreak, 3);
+  const transactions = [
+    makeTransaction('expense-1', 'expense', 100, '2026-10-01'),
+    makeTransaction('income-2', 'income', 100, '2026-10-02'),
+    makeTransaction('transfer-3', 'transfer', 100, '2026-10-03'),
+    makeTransaction('adjustment-4', 'adjustment', 100, '2026-10-04'),
+  ];
+  const state = syncStreakWithTransactions(
+    { completionDates: [], manualCompletionDates: [], longestStreak: 0 },
+    transactions,
+  );
+  const duplicateDate = syncStreakWithTransactions(state, [...transactions, transactions[2]]);
 
-  const manuallyChecked = addStreakCompletion(duplicate, '2026-10-04');
-  assert.equal(calculateStreakSummary(manuallyChecked, new Date(2026, 9, 4, 12)).currentStreak, 4);
+  assert.deepEqual(state.completionDates, ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']);
+  assert.deepEqual(duplicateDate.completionDates, state.completionDates);
+  assert.equal(calculateStreakSummary(state, new Date(2026, 9, 4, 12)).checkedToday, true);
+  assert.equal(calculateStreakSummary(state, new Date(2026, 9, 6, 12)).currentStreak, 4);
+  assert.equal(calculateStreakSummary(state, new Date(2026, 9, 6, 12)).longestStreak, 4);
 });
 
-test('transaction completion follows actual transactions while manual check-ins and longest streak persist', () => {
-  const completed = syncStreakWithTransactions(
-    { completionDates: [], manualCompletionDates: [], longestStreak: 0 },
-    [
-      makeTransaction('one', 'expense', 100, '2026-10-01'),
-      makeTransaction('two', 'income', 100, '2026-10-02'),
-    ],
-  );
-  const manuallyChecked = addStreakCompletion(completed, '2026-10-03');
+test('transaction edit or delete removes dates without any transaction and preserves historical longest', () => {
   const afterDelete = syncStreakWithTransactions(
-    manuallyChecked,
+    {
+      completionDates: ['2026-10-01', '2026-10-02', '2026-10-03'],
+      manualCompletionDates: ['2026-10-03'],
+      longestStreak: 3,
+    },
     [makeTransaction('two', 'income', 100, '2026-10-02')],
   );
 
-  assert.deepEqual(afterDelete.completionDates, ['2026-10-02', '2026-10-03']);
-  assert.deepEqual(afterDelete.manualCompletionDates, ['2026-10-03']);
+  assert.deepEqual(afterDelete.completionDates, ['2026-10-02']);
+  assert.deepEqual(afterDelete.manualCompletionDates, []);
   assert.equal(afterDelete.longestStreak, 3);
-  assert.equal(calculateStreakSummary(afterDelete, new Date(2026, 9, 3, 12)).currentStreak, 2);
+  assert.equal(calculateStreakSummary(afterDelete, new Date(2026, 9, 3, 12)).currentStreak, 1);
+});
+
+test('streak tier boundaries map exactly to the requested color bands', () => {
+  const cases: [number, string][] = [
+    [0, 'gray'],
+    [1, 'gray'],
+    [2, 'gray'],
+    [3, 'lightOrange'],
+    [9, 'lightOrange'],
+    [10, 'darkOrange'],
+    [29, 'darkOrange'],
+    [30, 'lightRed'],
+    [99, 'lightRed'],
+    [100, 'darkRed'],
+    [199, 'darkRed'],
+    [200, 'blue'],
+    [499, 'blue'],
+    [500, 'darkGreen'],
+    [999, 'darkGreen'],
+    [1000, 'darkGreen'],
+  ];
+  for (const [value, expectedTier] of cases) {
+    assert.equal(getStreakTier(value), expectedTier, `tier at ${value}`);
+    assert.equal(getStreakColor(value), streakColors[expectedTier as keyof typeof streakColors], `color at ${value}`);
+  }
 });
 
 const budget: Budget = {

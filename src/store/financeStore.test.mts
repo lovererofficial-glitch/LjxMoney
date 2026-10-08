@@ -9,6 +9,7 @@ import {
   calculateGoalSummary,
   calculateIncome,
   calculateOpeningBalanceForDate,
+  calculateStreakSummary,
   calculateTransferTotal,
   calculateWalletBalance,
   calculateWalletBalances,
@@ -310,6 +311,29 @@ test('balance adjustments increase and decrease wallet balance without income or
   assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), 800_000);
   assert.equal(calculateIncome(store.getState().transactions), 0);
   assert.equal(calculateExpense(store.getState().transactions), 0);
+});
+
+test('streak derives from transaction add, date edit, and deletion without check-in state', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  const first = makeTransaction('streak-day-1', 'income', 100, '2026-10-01');
+  const second = makeTransaction('streak-day-2', 'expense', 100, '2026-10-02');
+  const third = makeTransaction('streak-day-3', 'expense', 100, '2026-10-03');
+
+  store.getState().addTransaction(first);
+  assert.equal(calculateStreakSummary(store.getState().streak, new Date(2026, 9, 1, 12)).currentStreak, 1);
+  store.getState().addTransaction(second);
+  assert.equal(calculateStreakSummary(store.getState().streak, new Date(2026, 9, 2, 12)).currentStreak, 2);
+  store.getState().addTransaction(third);
+  assert.equal(calculateStreakSummary(store.getState().streak, new Date(2026, 9, 4, 12)).currentStreak, 3);
+
+  store.getState().updateTransaction(third.id, { date: '2026-10-05' });
+  assert.equal(calculateStreakSummary(store.getState().streak, new Date(2026, 9, 5, 12)).currentStreak, 1);
+  store.getState().updateTransaction(third.id, { date: '2026-10-03' });
+  assert.equal(calculateStreakSummary(store.getState().streak, new Date(2026, 9, 5, 12)).currentStreak, 3);
+  store.getState().deleteTransaction(third.id);
+  assert.equal(calculateStreakSummary(store.getState().streak, new Date(2026, 9, 5, 12)).currentStreak, 2);
+  store.getState().deleteTransaction(second.id);
+  assert.equal(calculateStreakSummary(store.getState().streak, new Date(2026, 9, 5, 12)).currentStreak, 1);
 });
 
 test('wallet QR store keeps per-wallet images local and isolated by user', async () => {

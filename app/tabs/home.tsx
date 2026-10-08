@@ -1,11 +1,12 @@
 import { format } from 'date-fns';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BalanceCard } from '../../src/components/BalanceCard';
+import { StreakFlame } from '../../src/components/StreakFlame';
 import { TransactionRow } from '../../src/components/TransactionRow';
 import {
   calculateBudgetSummary,
@@ -14,13 +15,14 @@ import {
   calculateWalletBalance,
 } from '../../src/features/finance/financeEngine';
 import { formatLocalizedCurrency, formatLocalizedDate } from '../../src/i18n/formatting';
-import { translateFinanceError, useI18n } from '../../src/i18n';
+import { useI18n } from '../../src/i18n';
 import { useFinanceStore } from '../../src/store/financeStore';
 import { useAuthStore } from '../../src/auth/authStore';
 import { Avatar } from '../../src/profile/Avatar';
 import { resolveProfileDisplayName, useProfileAvatarStore } from '../../src/profile/avatarStore';
 import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
+import { getStreakColor } from '../../src/features/finance/streakPresentation';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -33,7 +35,6 @@ export default function HomeScreen() {
   const streak = useFinanceStore((state) => state.streak);
   const hasHydrated = useFinanceStore((state) => state.hasHydrated);
   const hydrationError = useFinanceStore((state) => state.hydrationError);
-  const checkToday = useFinanceStore((state) => state.checkToday);
   const authUser = useAuthStore((state) => state.user);
   const avatarUri = useProfileAvatarStore((state) => (authUser ? state.avatars[authUser.id] ?? null : null));
   const storedDisplayName = useProfileAvatarStore((state) => (authUser ? state.displayNames[authUser.id] ?? null : null));
@@ -61,6 +62,7 @@ export default function HomeScreen() {
     () => calculateStreakSummary(streak),
     [streak],
   );
+  const streakColor = getStreakColor(streakSummary.currentStreak);
   const recentTransactions = useMemo(
     () => [...transactions]
       .sort((first, second) =>
@@ -101,14 +103,6 @@ export default function HomeScreen() {
   const createTransaction = (type: 'expense' | 'income' | 'transfer') => {
     router.push({ pathname: '/transaction/new', params: { type } });
   };
-  const handleCheckToday = () => {
-    try {
-      checkToday(today);
-    } catch (error) {
-      Alert.alert(t('dialog.checkInFailed'), translateFinanceError(error, t, 'dialog.tryAgain'));
-    }
-  };
-
   return (
     <ScrollView
       style={styles.screen}
@@ -131,22 +125,13 @@ export default function HomeScreen() {
             <Text numberOfLines={1} adjustsFontSizeToFit style={styles.title}>{userDisplayName}</Text>
           </View>
         </View>
-        <View style={styles.headerActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t('common.settings')}
-            onPress={() => router.push('/tabs/settings')}
-            style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.settingsLabel}>⚙</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/transaction/new')}
-            style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.addLabel}>+ {t('common.add')}</Text>
-          </Pressable>
+        <View
+          accessible
+          accessibilityLabel={t('common.days', { count: streakSummary.currentStreak })}
+          style={styles.streakIndicator}
+        >
+          <StreakFlame size={24} color={streakColor} />
+          <Text style={[styles.streakCount, { color: streakColor }]}>{streakSummary.currentStreak}</Text>
         </View>
       </Animated.View>
 
@@ -181,27 +166,6 @@ export default function HomeScreen() {
         <QuickAction label={t('home.addIncome')} onPress={() => createTransaction('income')} variant="income" />
         <QuickAction label={t('home.transfer')} onPress={() => createTransaction('transfer')} variant="transfer" />
       </Animated.View>
-
-      <View style={styles.streakCard}>
-        <Pressable onPress={() => router.push('/streak')} style={styles.streakCopy}>
-          <Text style={styles.streakEyebrow}>{t('home.streak')}</Text>
-          <Text style={styles.streakValue}>{t('common.days', { count: streakSummary.currentStreak })}</Text>
-          <Text style={styles.streakHint}>
-            {streakSummary.checkedToday ? t('home.todayCompleted') : t('home.keepGoing')}
-          </Text>
-        </Pressable>
-        {!streakSummary.checkedToday ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleCheckToday}
-            style={styles.checkButton}
-          >
-            <Text style={styles.checkLabel}>{t('home.checkToday')}</Text>
-          </Pressable>
-        ) : (
-          <Text style={styles.checkDone}>✓</Text>
-        )}
-      </View>
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -342,8 +306,10 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   loadingLabel: { color: colors.textSecondary, fontSize: 15 },
   content: { paddingHorizontal: spacing.lg },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginBottom: spacing.lg },
   profileWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1, minWidth: 0 },
+  streakIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.xs, minWidth: 56 },
+  streakCount: { fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
   avatarBubble: {
     width: 42,
     height: 42,
@@ -357,12 +323,6 @@ const styles = StyleSheet.create({
   avatarText: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   eyebrow: { color: colors.textSecondary, fontSize: 12, marginBottom: 3, letterSpacing: 0.4 },
   title: { color: colors.text, fontSize: typography.headline, fontWeight: '800', maxWidth: 180 },
-  addButton: { minHeight: 46, justifyContent: 'center', backgroundColor: colors.surfaceElevated, borderRadius: radius.md, paddingHorizontal: spacing.md },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  settingsButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.surface },
-  settingsLabel: { color: colors.accent, fontSize: 22 },
-  addLabel: { color: colors.accent, fontSize: 15, fontWeight: '700' },
-  pressed: { opacity: 0.76 },
   errorBanner: { color: colors.expense, backgroundColor: colors.surface, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.md },
   heroStack: { marginBottom: spacing.lg },
   floatingMetrics: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, marginHorizontal: 2 },
@@ -403,14 +363,6 @@ const styles = StyleSheet.create({
   quickActionLabelIncome: { color: colors.income },
   quickActionLabelExpense: { color: colors.expense },
   quickActionLabelTransfer: { color: colors.warning },
-  streakCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.lg },
-  streakCopy: { flex: 1 },
-  streakEyebrow: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  streakValue: { color: colors.text, fontSize: 20, fontWeight: '800', marginTop: 3 },
-  streakHint: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-  checkButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceElevated },
-  checkLabel: { color: colors.accent, fontSize: 13, fontWeight: '700' },
-  checkDone: { color: colors.income, fontSize: 20, fontWeight: '800' },
   compactCard: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   metricHeader: { flexDirection: 'row', justifyContent: 'space-between' },
   compactTitle: { color: colors.text, fontSize: 14, fontWeight: '700' },

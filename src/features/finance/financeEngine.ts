@@ -720,32 +720,17 @@ const calculateLongestStreak = (completionDates: string[]) => {
   return longest;
 };
 
-export const addStreakCompletion = (state: StreakState, date: string): StreakState => {
-  const manualCompletionDates = [...new Set([...state.manualCompletionDates, date])]
-    .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item) && isValid(parseISO(item)))
-    .sort();
-  const completionDates = [...new Set([...state.completionDates, ...manualCompletionDates])]
-    .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item) && isValid(parseISO(item)))
-    .sort();
-  return {
-    completionDates,
-    manualCompletionDates,
-    longestStreak: Math.max(state.longestStreak, calculateLongestStreak(completionDates)),
-  };
-};
-
 export const syncStreakWithTransactions = (
   state: StreakState,
   transactions: Transaction[],
 ): StreakState => {
-  const manualCompletionDates = [...new Set(state.manualCompletionDates)].sort();
   const transactionDates = transactions
     .map((transaction) => transaction.date)
     .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date) && isValid(parseISO(date)));
-  const completionDates = [...new Set([...manualCompletionDates, ...transactionDates])].sort();
+  const completionDates = [...new Set(transactionDates)].sort();
   return {
     completionDates,
-    manualCompletionDates,
+    manualCompletionDates: [],
     longestStreak: Math.max(state.longestStreak, calculateLongestStreak(completionDates)),
   };
 };
@@ -755,18 +740,15 @@ export const calculateStreakSummary = (
   asOfDate: Date = new Date(),
 ): StreakSummary => {
   const today = format(startOfDay(asOfDate), 'yyyy-MM-dd');
-  const yesterday = format(addDays(startOfDay(asOfDate), -1), 'yyyy-MM-dd');
   const completionDates = [...new Set(state.completionDates)].sort();
   const lastCompletedDate = completionDates.at(-1) ?? null;
   const checkedToday = completionDates.includes(today);
   let currentStreak = 0;
 
-  if (lastCompletedDate === today || lastCompletedDate === yesterday) {
-    let date = lastCompletedDate;
-    while (date && completionDates.includes(date)) {
-      currentStreak += 1;
-      date = format(addDays(parseISO(date), -1), 'yyyy-MM-dd');
-    }
+  let date = lastCompletedDate;
+  while (date && completionDates.includes(date)) {
+    currentStreak += 1;
+    date = format(addDays(parseISO(date), -1), 'yyyy-MM-dd');
   }
 
   return {
