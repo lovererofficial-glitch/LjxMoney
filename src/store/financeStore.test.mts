@@ -17,6 +17,7 @@ import {
 import type { Budget, GoalContribution, SavingsGoal, Transaction, Wallet } from '../features/finance/models.ts';
 import { findTransactionById, transactionDetailRoute, transactionDetailRouteId } from '../lib/transactionRoutes.ts';
 import { createFinanceStore, registerSyncDeletionListener } from './financeStoreCore.ts';
+import { createWalletQrStore } from '../wallets/walletQrStore.ts';
 
 const createMemoryStorage = (): StateStorage => {
   const values = new Map<string, string>();
@@ -125,7 +126,7 @@ const makeContribution = (): GoalContribution => ({
 
 test('wallet actions preserve initial balance and transaction history through archive and restore', () => {
   const store = createFinanceStore(createMemoryStorage());
-  const wallet = makeWallet('reserve', 1_000);
+  const wallet = { ...makeWallet('reserve', 1_000), paymentQrPath: 'user-1/reserve/payment-qr-v1' };
   store.getState().addWallet(wallet);
   store.getState().addTransaction(makeTransaction('income', 'income', 400, '2026-10-01', wallet.id));
   store.getState().addTransaction(makeTransaction('expense', 'expense', 150, '2026-10-02', wallet.id));
@@ -134,11 +135,13 @@ test('wallet actions preserve initial balance and transaction history through ar
 
   store.getState().archiveWallet(wallet.id);
   assert.ok(store.getState().wallets.find((item) => item.id === wallet.id)?.archivedAt);
+  assert.equal(store.getState().wallets.find((item) => item.id === wallet.id)?.paymentQrPath, wallet.paymentQrPath);
   assert.equal(store.getState().transactions.length, 2);
   assert.equal(calculateWalletBalance(wallet.id, store.getState().transactions, store.getState().wallets), 1_250);
 
   store.getState().updateWallet(wallet.id, { archivedAt: null });
   assert.equal(store.getState().wallets.find((item) => item.id === wallet.id)?.archivedAt, null);
+  assert.equal(store.getState().wallets.find((item) => item.id === wallet.id)?.paymentQrPath, wallet.paymentQrPath);
 });
 
 test('wallet CRUD trims names, rejects duplicates, persists, and keeps valid timestamps', () => {
@@ -256,6 +259,47 @@ test('balance adjustments increase and decrease wallet balance without income or
   assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), 800_000);
   assert.equal(calculateIncome(store.getState().transactions), 0);
   assert.equal(calculateExpense(store.getState().transactions), 0);
+});
+
+test('wallet QR store keeps per-wallet images local and isolated by user', async () => {
+  const storage = createMemoryStorage();
+  const qrs = createWalletQrStore(storage);
+
+  assert.equal(await qrs.getState().hydrateWalletQr('user-a', 'wallet-mb'), null);
+  await qrs.getState().setQrForWallet('user-a', 'wallet-mb', 'file://user-a/mb.png');
+  await qrs.getState().setQrForWallet('user-a', 'wallet-momo', 'file://user-a/momo.png');
+  await qrs.getState().setQrForWallet('user-b', 'wallet-mb', 'file://user-b/mb.png');
+
+  assert.equal(qrs.getState().walletQrs['user-a']?.['wallet-mb'], 'file://user-a/mb.png');
+  assert.equal(qrs.getState().walletQrs['user-a']?.['wallet-momo'], 'file://user-a/momo.png');
+  assert.equal(qrs.getState().walletQrs['user-b']?.['wallet-mb'], 'file://user-b/mb.png');
+
+  await qrs.getState().setQrForWallet('user-a', 'wallet-mb', 'file://user-a/updated-mb.png');
+  assert.equal(qrs.getState().walletQrs['user-a']?.['wallet-mb'], 'file://user-a/updated-mb.png');
+
+  await qrs.getState().clearQrForWallet('user-a', 'wallet-mb');
+  assert.equal(qrs.getState().walletQrs['user-a']?.['wallet-mb'], null);
+  assert.equal(qrs.getState().walletQrs['user-b']?.['wallet-mb'], 'file://user-b/mb.png');
+
+  await qrs.getState().queueQrDeletion('user-a', 'wallet-momo');
+  qrs.getState().clearAll();
+  assert.deepEqual(qrs.getState().walletQrs, {});
+
+  const afterLogin = createWalletQrStore(storage);
+  assert.equal(await afterLogin.getState().hydrateWalletQr('user-b', 'wallet-mb'), 'file://user-b/mb.png');
+  assert.equal(await afterLogin.getState().hydrateWalletQr('user-a', 'wallet-mb'), null);
+  assert.equal(await afterLogin.getState().hydrateWalletQr('user-a', 'wallet-momo'), 'file://user-a/momo.png');
+  assert.equal(await afterLogin.getState().hasPendingQrDeletion('user-a', 'wallet-momo'), true);
+  await afterLogin.getState().clearPendingQrDeletion('user-a', 'wallet-momo');
+  assert.equal(await afterLogin.getState().hasPendingQrDeletion('user-a', 'wallet-momo'), false);
+  await afterLogin.getState().queueQrUpload('user-a', 'wallet-momo');
+  assert.equal(await afterLogin.getState().hasPendingQrUpload('user-a', 'wallet-momo'), true);
+  await afterLogin.getState().setQrCloudPath('user-a', 'wallet-momo', 'user-a/wallet-momo/payment-qr-v1');
+  assert.equal(await afterLogin.getState().getQrCloudPath('user-a', 'wallet-momo'), 'user-a/wallet-momo/payment-qr-v1');
+  await afterLogin.getState().clearPendingQrUpload('user-a', 'wallet-momo');
+  assert.equal(await afterLogin.getState().hasPendingQrUpload('user-a', 'wallet-momo'), false);
+  await afterLogin.getState().setQrForWallet('user-a', 'wallet-momo', 'file://user-a/replacement.png');
+  assert.equal(await afterLogin.getState().getQrCloudPath('user-a', 'wallet-momo'), null);
 });
 
 test('adjustment transactions persist locally and legacy rows retain increase semantics', () => {

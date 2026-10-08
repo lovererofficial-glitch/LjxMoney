@@ -36,6 +36,7 @@ export interface Wallet {
   color: string;
   type: WalletType;
   icon?: string;
+  paymentQrPath?: string | null;
   initialBalance: number;
   archivedAt?: string | null;
   createdAt?: string;

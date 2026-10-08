@@ -10,6 +10,15 @@ import { runSyncCycle } from './syncEngine.ts';
 import { createSupabaseSyncRepository } from './syncRepository.ts';
 import { useSyncStatusStore } from './syncStatusStore.ts';
 import { classifySyncError, type SyncEntity, type SyncSnapshot } from './syncTypes.ts';
+import { useWalletQrStore } from '../wallets/walletQrStore.ts';
+import {
+  deleteWalletQrFromCloud,
+  downloadWalletQr,
+  isWalletQrFileAvailable,
+  pruneWalletQrVersions,
+  removeLocalWalletQr,
+  uploadWalletQr,
+} from '../wallets/walletQrAssets.ts';
 
 const DEBOUNCE_MS = 2000;
 const RETRY_MS = 30_000;
@@ -70,6 +79,92 @@ const toErrorDetail = (error: unknown): string => {
   return safe || 'Unknown sync error';
 };
 
+const syncWalletQrAssets = async (userId: string, isStale: () => boolean) => {
+  const qrStore = useWalletQrStore.getState();
+  const wallets = useFinanceStore.getState().wallets;
+  let retryNeeded = false;
+
+  for (const wallet of wallets) {
+    if (isStale() || useAuthStore.getState().user?.id !== userId) {
+      return false;
+    }
+    if (!(await qrStore.hasPendingQrDeletion(userId, wallet.id))) {
+      continue;
+    }
+    try {
+      await deleteWalletQrFromCloud(userId, wallet.id);
+      if (!isStale() && useAuthStore.getState().user?.id === userId) {
+        await qrStore.clearPendingQrDeletion(userId, wallet.id);
+      }
+    } catch {
+      retryNeeded = true;
+    }
+  }
+
+  for (const wallet of wallets) {
+    if (isStale() || useAuthStore.getState().user?.id !== userId) {
+      return false;
+    }
+    let localUri = await qrStore.hydrateWalletQr(userId, wallet.id);
+    if (localUri && !isWalletQrFileAvailable(localUri)) {
+      await qrStore.clearQrForWallet(userId, wallet.id);
+      localUri = null;
+    }
+    let uploadPending = await qrStore.hasPendingQrUpload(userId, wallet.id);
+    if (uploadPending && !localUri) {
+      await qrStore.clearPendingQrUpload(userId, wallet.id);
+      uploadPending = false;
+    }
+
+    let localCloudPath = await qrStore.getQrCloudPath(userId, wallet.id);
+    if (wallet.paymentQrPath) {
+      if (!uploadPending && (!localUri || localCloudPath !== wallet.paymentQrPath)) {
+        try {
+          const downloadedUri = await downloadWalletQr(userId, wallet.id, wallet.paymentQrPath);
+          if (!isStale() && useAuthStore.getState().user?.id === userId) {
+            await qrStore.setQrForWallet(userId, wallet.id, downloadedUri);
+            await qrStore.setQrCloudPath(userId, wallet.id, wallet.paymentQrPath);
+            localCloudPath = wallet.paymentQrPath;
+            if (localUri && localUri !== downloadedUri) {
+              removeLocalWalletQr(userId, wallet.id, localUri);
+            }
+            localUri = downloadedUri;
+          }
+        } catch {
+          retryNeeded = true;
+        }
+      }
+    }
+
+    if (localUri && (uploadPending || !wallet.paymentQrPath)) {
+      try {
+        const paymentQrPath = await uploadWalletQr(userId, wallet.id, localUri);
+        if (isStale() || useAuthStore.getState().user?.id !== userId) {
+          return false;
+        }
+        const currentWallet = useFinanceStore.getState().wallets.find((item) => item.id === wallet.id);
+        if (currentWallet && currentWallet.paymentQrPath !== paymentQrPath) {
+          useFinanceStore.getState().updateWallet(wallet.id, { paymentQrPath });
+        }
+        await qrStore.setQrCloudPath(userId, wallet.id, paymentQrPath);
+        await qrStore.clearPendingQrUpload(userId, wallet.id);
+      } catch {
+        retryNeeded = true;
+      }
+    }
+
+    if (wallet.paymentQrPath && !uploadPending && localCloudPath === wallet.paymentQrPath) {
+      try {
+        await pruneWalletQrVersions(userId, wallet.id, wallet.paymentQrPath);
+      } catch {
+        retryNeeded = true;
+      }
+    }
+  }
+
+  return retryNeeded;
+};
+
 const runCycle = async (generation: number) => {
   const status = useSyncStatusStore.getState();
   const auth = useAuthStore.getState();
@@ -121,6 +216,13 @@ const runCycle = async (generation: number) => {
     if (result === 'blocked') {
       status.setPhase('blocked');
       return;
+    }
+    const qrRetryNeeded = await syncWalletQrAssets(userId, isStale);
+    if (isStale()) {
+      return;
+    }
+    if (qrRetryNeeded) {
+      scheduleSync(RETRY_MS);
     }
     const meta = await loadSyncMeta(userId);
     if (isStale()) {

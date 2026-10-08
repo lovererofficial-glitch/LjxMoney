@@ -26,6 +26,14 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "LjxMoney accesses selected photos to add wallet payment QR codes.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       "@react-native-community/datetimepicker"
     ],
     "extra": {

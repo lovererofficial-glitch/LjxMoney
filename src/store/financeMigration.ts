@@ -27,6 +27,7 @@ export const normalizeWallet = (wallet: Wallet): Wallet => ({
   type: wallet.type || 'cash',
   initialBalance: Number.isSafeInteger(wallet.initialBalance) ? wallet.initialBalance : 0,
   icon: wallet.icon ?? 'wallet',
+  paymentQrPath: wallet.paymentQrPath ?? null,
   archivedAt: wallet.archivedAt ?? null,
   createdAt: wallet.createdAt ?? new Date().toISOString(),
   updatedAt: wallet.updatedAt ?? new Date().toISOString(),
