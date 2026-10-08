@@ -11,6 +11,7 @@ import {
   calculateOpeningBalanceForDate,
   calculateTransferTotal,
   calculateWalletBalance,
+  calculateWalletBalances,
   getStatisticsSummary,
 } from '../features/finance/financeEngine.ts';
 import type { Budget, GoalContribution, SavingsGoal, Transaction, Wallet } from '../features/finance/models.ts';
@@ -192,6 +193,20 @@ test('transaction detail resolves the exact transaction after hydration and not 
   hydratedStore.getState().deleteTransaction(transaction.id);
   assert.equal(findTransactionById(hydratedStore.getState().transactions, routeId), undefined);
   assert.equal(findTransactionById(hydratedStore.getState().transactions, 'different-id'), undefined);
+});
+
+test('derived Net Worth is restored from hydrated wallets and transactions without persisted balance state', () => {
+  const storage = createMemoryStorage();
+  const store = createFinanceStore(storage);
+  store.getState().updateWallet('cash', { initialBalance: 1_000_000 });
+  store.getState().updateWallet('bank', { initialBalance: 2_000_000 });
+  store.getState().addTransaction(makeTransaction('net-worth-expense', 'expense', 600_000, '2026-10-08', 'cash'));
+  store.getState().addTransaction(makeTransfer('net-worth-transfer', 400_000, '2026-10-08', 'bank', 'cash'));
+
+  const restored = createFinanceStore(storage);
+  const balances = calculateWalletBalances(restored.getState().transactions, restored.getState().wallets);
+  assert.equal(Object.values(balances).reduce((total, balance) => total + balance, 0), 2_400_000);
+  assert.equal(restored.getState().transactions.length, 2);
 });
 
 test('archived wallets reject new transactions but preserve historical edits and balances', () => {
