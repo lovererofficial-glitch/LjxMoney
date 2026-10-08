@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { calculateWalletBalance } from '../../src/features/finance/financeEngine';
 import { useFinanceStore } from '../../src/store/financeStore';
 import { localizeCategoryName, localizeWalletName, localizeWalletType, useI18n } from '../../src/i18n';
+import { getDisplayAmount, useSecurityStore } from '../../src/security/securityStore';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 
@@ -17,6 +18,8 @@ export default function WalletDetailScreen() {
   const transactions = useFinanceStore((state) => state.transactions);
   const categories = useFinanceStore((state) => state.categories);
   const hasHydrated = useFinanceStore((state) => state.hasHydrated);
+  const isBalanceHidden = useSecurityStore((state) => state.isBalanceHidden);
+  const toggleBalanceHidden = useSecurityStore((state) => state.toggleBalanceHidden);
 
   const wallet = useMemo(
     () => (id ? wallets.find((item) => item.id === id) ?? null : null),
@@ -90,8 +93,13 @@ export default function WalletDetailScreen() {
       </View>
 
       <View style={styles.balanceCard}>
-        <Text style={styles.cardTitle}>{t('wallet.currentBalance')}</Text>
-        <Text style={styles.balance}>{balance.toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })}</Text>
+        <View style={styles.balanceHeader}>
+          <Text style={styles.cardTitle}>{t('wallet.currentBalance')}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={isBalanceHidden ? 'Show balance' : 'Hide balance'} onPress={toggleBalanceHidden} style={styles.eyeButton}>
+            <Text style={styles.eyeText}>{isBalanceHidden ? '◉' : '◌'}</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.balance}>{getDisplayAmount(balance, language, isBalanceHidden)}</Text>
         {!wallet.archivedAt ? (
           <Pressable
             accessibilityRole="button"
@@ -257,6 +265,16 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
   },
+  balanceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  eyeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eyeText: { color: colors.text, fontSize: 14, fontWeight: '700' },
   cardTitle: {
     fontSize: typography.body,
     color: colors.textSecondary,

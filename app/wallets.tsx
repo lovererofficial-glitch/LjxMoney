@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { calculateWalletBalance } from '../src/features/finance/financeEngine';
 import { useFinanceStore } from '../src/store/financeStore';
 import { localizeWalletName, localizeWalletType, useI18n } from '../src/i18n';
+import { getDisplayAmount, useSecurityStore } from '../src/security/securityStore';
 import { colors, radius, spacing, typography } from '../src/theme/theme';
 
 const WALLET_GLYPHS: Record<string, string> = {
@@ -23,6 +24,8 @@ export default function WalletsScreen() {
   const wallets = useFinanceStore((state) => state.wallets);
   const transactions = useFinanceStore((state) => state.transactions);
   const hasHydrated = useFinanceStore((state) => state.hasHydrated);
+  const isBalanceHidden = useSecurityStore((state) => state.isBalanceHidden);
+  const toggleBalanceHidden = useSecurityStore((state) => state.toggleBalanceHidden);
 
   const activeWallets = useMemo(() => wallets.filter((wallet) => !wallet.archivedAt), [wallets]);
   const archivedWallets = useMemo(() => wallets.filter((wallet) => wallet.archivedAt), [wallets]);
@@ -70,7 +73,7 @@ export default function WalletsScreen() {
         <Text style={styles.rowType}>{localizeWalletType(wallet.type, t)}{archived ? ` · ${t('wallet.archived')}` : ''}</Text>
       </View>
       <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.rowBalance, archived && styles.rowBalanceDisabled]}>
-        {calculateWalletBalance(wallet.id, transactions, wallets).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })}
+        {getDisplayAmount(calculateWalletBalance(wallet.id, transactions, wallets), language, isBalanceHidden)}
       </Text>
       <View style={styles.actions}>
         <Pressable
@@ -98,8 +101,13 @@ export default function WalletsScreen() {
     <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.xl }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.totalBlock}>
-          <Text style={styles.totalLabel}>{t('wallet.totalBalance')}</Text>
-          <Text style={styles.totalValue}>{totalBalance.toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 })}</Text>
+          <View style={styles.totalHeader}>
+            <Text style={styles.totalLabel}>{t('wallet.totalBalance')}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={isBalanceHidden ? 'Show balance' : 'Hide balance'} onPress={toggleBalanceHidden} style={styles.eyeButton}>
+              <Text style={styles.eyeText}>{isBalanceHidden ? '◉' : '◌'}</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.totalValue}>{getDisplayAmount(totalBalance, language, isBalanceHidden)}</Text>
           <View style={styles.totalRule} />
         </View>
 
@@ -152,12 +160,21 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     marginBottom: spacing.md,
   },
+  totalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
   totalLabel: {
     fontSize: typography.caption,
     color: colors.textSecondary,
     letterSpacing: 1,
-    marginBottom: spacing.sm,
   },
+  eyeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eyeText: { color: colors.text, fontSize: 14, fontWeight: '700' },
   totalValue: {
     fontSize: typography.display,
     color: colors.text,

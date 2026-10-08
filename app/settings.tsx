@@ -1,11 +1,14 @@
+import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useI18n } from '../src/i18n';
 import { useLanguageStore } from '../src/i18n/runtime';
 import type { Language } from '../src/i18n/types';
 import { colors, radius, spacing, typography } from '../src/theme/theme';
+import { useSecurityStore } from '../src/security/securityStore';
 
 const languageOptions: Language[] = ['vi', 'en'];
 
@@ -13,6 +16,52 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { language, setLanguage, t } = useI18n();
   const hydrationError = useLanguageStore((state) => state.hydrationError);
+  const isBalanceHidden = useSecurityStore((state) => state.isBalanceHidden);
+  const toggleBalanceHidden = useSecurityStore((state) => state.toggleBalanceHidden);
+  const appLockEnabled = useSecurityStore((state) => state.appLockEnabled);
+  const setAppLockEnabled = useSecurityStore((state) => state.setAppLockEnabled);
+  const setAppLocked = useSecurityStore((state) => state.setAppLocked);
+  const [biometricAvailable, setBiometricAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    LocalAuthentication.getEnrolledLevelAsync().then((level) => {
+      if (active) {
+        setBiometricAvailable(level !== LocalAuthentication.SecurityLevel.NONE);
+      }
+    }).catch(() => {
+      if (active) {
+        setBiometricAvailable(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleAppLockToggle = async (nextValue: boolean) => {
+    if (!nextValue) {
+      setAppLockEnabled(false);
+      setAppLocked(false);
+      return;
+    }
+    if (biometricAvailable === false) {
+      return;
+    }
+
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: t('settings.appLockUnlockPrompt'),
+        cancelLabel: t('settings.appLockCancel'),
+      });
+      if (result.success) {
+        setAppLockEnabled(true);
+        setAppLocked(true);
+      }
+    } catch {
+      // No crash; keep security disabled unless biometric succeeds.
+    }
+  };
 
   return (
     <ScrollView
@@ -60,6 +109,36 @@ export default function SettingsScreen() {
           </Pressable>
         ))}
       </View>
+
+      <View style={[styles.card, styles.toggleCard]}>
+        <View style={styles.rowHeading}>
+          <View>
+            <Text style={styles.rowTitle}>{t('settings.balancePrivacy')}</Text>
+            <Text style={styles.rowHint}>{t('settings.balancePrivacyHint')}</Text>
+          </View>
+          <Switch
+            value={isBalanceHidden}
+            onValueChange={toggleBalanceHidden}
+            accessibilityLabel={t('settings.balancePrivacy')}
+          />
+        </View>
+      </View>
+
+      <View style={[styles.card, styles.toggleCard]}>
+        <View style={styles.rowHeading}>
+          <View>
+            <Text style={styles.rowTitle}>{t('settings.appLock')}</Text>
+            <Text style={styles.rowHint}>{biometricAvailable === false ? t('settings.appLockUnavailable') : t('settings.appLockHint')}</Text>
+          </View>
+          <Switch
+            value={appLockEnabled}
+            onValueChange={handleAppLockToggle}
+            disabled={biometricAvailable === false}
+            accessibilityLabel={t('settings.appLockToggle')}
+          />
+        </View>
+      </View>
+
       {hydrationError ? <Text accessibilityRole="alert" style={styles.error}>{t('settings.preferenceLoadError')}</Text> : null}
       <View style={[styles.card, styles.accountCard]}>
         <Pressable accessibilityRole="button" onPress={() => router.push('/account')}>
@@ -101,6 +180,7 @@ const styles = StyleSheet.create({
   radio: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border },
   radioSelected: { borderColor: colors.accent, backgroundColor: colors.accent },
   checkmark: { color: colors.background, fontSize: 15, fontWeight: '900' },
+  toggleCard: { marginTop: spacing.md },
   error: { color: colors.expense, fontSize: 13, lineHeight: 19, marginTop: spacing.md },
   accountCard: { marginTop: spacing.md },
 });

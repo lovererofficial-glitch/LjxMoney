@@ -25,6 +25,7 @@ import { formatLocalizedCurrency, formatLocalizedDate } from '../../src/i18n/for
 import { localizeCategoryName, localizeShortWeekday, localizeWalletName, useI18n } from '../../src/i18n';
 import type { TranslationKey } from '../../src/i18n';
 import { useFinanceStore } from '../../src/store/financeStore';
+import { getDisplayAmount, useSecurityStore } from '../../src/security/securityStore';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
 const periods: StatisticsPeriod[] = ['day', 'week', 'month', 'year'];
@@ -38,6 +39,8 @@ export default function StatsScreen() {
   const categories = useFinanceStore((state) => state.categories);
   const wallets = useFinanceStore((state) => state.wallets);
   const hasHydrated = useFinanceStore((state) => state.hasHydrated);
+  const isBalanceHidden = useSecurityStore((state) => state.isBalanceHidden);
+  const toggleBalanceHidden = useSecurityStore((state) => state.toggleBalanceHidden);
   const range = useMemo(() => getPeriodDateRange(period, anchorDate), [anchorDate, period]);
   const previousRange = useMemo(
     () => getPeriodDateRange(period, addDays(range.start, -1)),
@@ -233,17 +236,22 @@ export default function StatsScreen() {
         </Pressable>
       </View>
       <View style={styles.netWorthCard}>
-        <Text style={styles.netWorthLabel}>{t('statistics.netWorth')}</Text>
-        <Text style={styles.netWorthValue}>{formatLocalizedCurrency(currentNetWorth, language)}</Text>
+        <View style={styles.netWorthHeader}>
+          <Text style={styles.netWorthLabel}>{t('statistics.netWorth')}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={isBalanceHidden ? 'Show balance' : 'Hide balance'} onPress={toggleBalanceHidden} style={styles.eyeButton}>
+            <Text style={styles.eyeText}>{isBalanceHidden ? '◉' : '◌'}</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.netWorthValue}>{getDisplayAmount(currentNetWorth, language, isBalanceHidden)}</Text>
         <View style={styles.netWorthMeta}>
           <Text style={styles.netWorthMetaLabel}>{t('statistics.periodChange')}</Text>
           <Text style={[styles.netWorthChange, periodNetWorthChange < 0 ? styles.expense : styles.income]}>
             {periodNetWorthChange > 0 ? '+' : periodNetWorthChange < 0 ? '−' : ''}
-            {formatLocalizedCurrency(Math.abs(periodNetWorthChange), language)}
+            {getDisplayAmount(Math.abs(periodNetWorthChange), language, isBalanceHidden)}
           </Text>
         </View>
         <Text style={styles.netWorthStarting}>
-          {t('statistics.periodStartingWorth')}: {formatLocalizedCurrency(periodOpeningNetWorth, language)}
+          {t('statistics.periodStartingWorth')}: {getDisplayAmount(periodOpeningNetWorth, language, isBalanceHidden)}
         </Text>
       </View>
       <View style={styles.summaryGrid}>
@@ -435,7 +443,17 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: colors.accent,
   },
-  netWorthLabel: { color: colors.textSecondary, fontSize: typography.caption, fontWeight: '700' },
+  netWorthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  netWorthLabel: { color: colors.textSecondary, fontSize: typography.caption, fontWeight: '700', flex: 1 },
+  eyeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eyeText: { color: colors.text, fontSize: 14, fontWeight: '700' },
   netWorthValue: { color: colors.text, fontSize: typography.title, fontWeight: '800', marginTop: spacing.xs },
   netWorthMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md },
   netWorthMetaLabel: { color: colors.textSecondary, fontSize: 13 },

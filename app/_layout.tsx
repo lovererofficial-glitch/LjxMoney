@@ -20,6 +20,7 @@ import {
   writeOwnerFinanceSnapshot,
 } from '../src/store/financeStore';
 import { createFinanceSessionController } from '../src/store/financeSession';
+import { AppLockGate } from '../src/security/AppLockGate';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -46,12 +47,14 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <I18nGate>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-            }}
-          />
+          <AppLockGate>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+              }}
+            />
+          </AppLockGate>
         </I18nGate>
       </GestureHandlerRootView>
     </SafeAreaProvider>
