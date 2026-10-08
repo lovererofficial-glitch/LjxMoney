@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useI18n } from '../src/i18n';
 import { useLanguageStore } from '../src/i18n/runtime';
 import type { Language } from '../src/i18n/types';
+import { useAuthStore } from '../src/auth/authStore';
 import { colors, radius, spacing, typography } from '../src/theme/theme';
 import { useSecurityStore } from '../src/security/securityStore';
 
@@ -16,6 +17,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { language, setLanguage, t } = useI18n();
   const hydrationError = useLanguageStore((state) => state.hydrationError);
+  const authUser = useAuthStore((state) => state.user);
   const isBalanceHidden = useSecurityStore((state) => state.isBalanceHidden);
   const toggleBalanceHidden = useSecurityStore((state) => state.toggleBalanceHidden);
   const appLockEnabled = useSecurityStore((state) => state.appLockEnabled);
@@ -78,6 +80,16 @@ export default function SettingsScreen() {
         </Pressable>
         <Text style={styles.title}>{t('common.settings')}</Text>
         <View style={styles.backButton} />
+      </View>
+
+      <View style={styles.profileCard}>
+        <View style={styles.profileAvatar}>
+          <Text style={styles.profileAvatarText}>{(authUser?.email ?? 'LjxMoney').split('@')[0].slice(0, 2).toUpperCase() || 'LM'}</Text>
+        </View>
+        <View style={styles.profileMeta}>
+          <Text style={styles.profileName}>{authUser?.email ? authUser.email.split('@')[0] : 'LjxMoney'}</Text>
+          <Text style={styles.profileEmail}>{authUser?.email ?? 'ljxmoney'}</Text>
+        </View>
       </View>
 
       <Text style={styles.sectionHeading}>{t('settings.general')}</Text>
@@ -168,6 +180,29 @@ const styles = StyleSheet.create({
   backButton: { minWidth: 64 },
   back: { color: colors.accent, fontSize: 15, fontWeight: '600' },
   title: { color: colors.text, fontSize: typography.title, fontWeight: '800' },
+  profileCard: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  profileAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  profileAvatarText: { color: colors.accent, fontSize: 18, fontWeight: '800' },
+  profileMeta: { flex: 1 },
+  profileName: { color: colors.text, fontSize: 18, fontWeight: '700' },
+  profileEmail: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
   sectionHeading: { color: colors.textSecondary, fontSize: 14, fontWeight: '700', marginBottom: spacing.sm },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, paddingHorizontal: spacing.lg },
   rowHeading: { minHeight: 76, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },

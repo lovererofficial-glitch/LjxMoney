@@ -15,6 +15,7 @@ import {
 import { formatLocalizedCurrency, formatLocalizedDate } from '../../src/i18n/formatting';
 import { translateFinanceError, useI18n } from '../../src/i18n';
 import { useFinanceStore } from '../../src/store/financeStore';
+import { useAuthStore } from '../../src/auth/authStore';
 import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
@@ -30,6 +31,15 @@ export default function HomeScreen() {
   const hasHydrated = useFinanceStore((state) => state.hasHydrated);
   const hydrationError = useFinanceStore((state) => state.hydrationError);
   const checkToday = useFinanceStore((state) => state.checkToday);
+  const authUser = useAuthStore((state) => state.user);
+  const userEmail = authUser?.email ?? 'LjxMoney';
+  const userInitials = userEmail
+    .split('@')[0]
+    .split(/[._\s-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'LM';
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.date === today),
@@ -110,9 +120,14 @@ export default function HomeScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.eyebrow}>{formatLocalizedDate(new Date(), 'EEEE, dd MMMM', language)}</Text>
-          <Text style={styles.title}>LjxMoney</Text>
+        <View style={styles.profileWrap}>
+          <View style={styles.avatarBubble}>
+            <Text style={styles.avatarText}>{userInitials}</Text>
+          </View>
+          <View>
+            <Text style={styles.eyebrow}>{formatLocalizedDate(new Date(), 'EEEE, dd MMMM', language)}</Text>
+            <Text style={styles.title}>LjxMoney</Text>
+          </View>
         </View>
         <View style={styles.headerActions}>
           <Pressable
@@ -302,7 +317,19 @@ const styles = StyleSheet.create({
   loadingLabel: { color: colors.textSecondary, fontSize: 15 },
   content: { paddingHorizontal: spacing.lg },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
-  eyebrow: { color: colors.textSecondary, fontSize: 14, marginBottom: 3 },
+  profileWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
+  avatarBubble: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 181, 109, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { color: colors.accent, fontWeight: '700', fontSize: 14 },
+  eyebrow: { color: colors.textSecondary, fontSize: 12, marginBottom: 3, letterSpacing: 0.4 },
   title: { color: colors.text, fontSize: typography.title, fontWeight: '800', letterSpacing: -0.5 },
   addButton: { minHeight: 46, justifyContent: 'center', backgroundColor: colors.surfaceElevated, borderRadius: radius.md, paddingHorizontal: spacing.md },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
