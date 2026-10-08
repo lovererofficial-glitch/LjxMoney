@@ -75,7 +75,7 @@ export const TransactionForm = ({
           ? 'income'
           : 'expense'),
   );
-          const transferWallets = type === 'transfer' ? activeWallets : selectableWallets;
+  const transferWallets = type === 'transfer' ? activeWallets : selectableWallets;
   const [amountText, setAmountText] = useState(initialAmount ? formatVndInput(initialAmount, language) : '');
   const [categoryId, setCategoryId] = useState(initialTransaction?.categoryId ?? '');
   const [walletId, setWalletId] = useState(
@@ -211,16 +211,17 @@ export const TransactionForm = ({
 
       setError('');
       save({
-          type: 'transfer',
-          amount: selectedAmount,
-          categoryId: '',
-          walletId: selectedSourceWallet.id,
-          sourceWalletId: selectedSourceWallet.id,
-          destinationWalletId: selectedDestinationWallet.id,
-          date,
-          time,
-          note: note.trim(),
-        }, 'validation.transferSaveFailed');
+        type: 'transfer',
+        amount: selectedAmount,
+        categoryId: '',
+        walletId: selectedSourceWallet.id,
+        sourceWalletId: selectedSourceWallet.id,
+        destinationWalletId: selectedDestinationWallet.id,
+        adjustmentDirection: undefined,
+        date,
+        time,
+        note: note.trim(),
+      }, 'validation.transferSaveFailed');
       return;
     }
 
@@ -235,14 +236,17 @@ export const TransactionForm = ({
 
     setError('');
     save({
-        type,
-        amount: selectedAmount,
-        categoryId: selectedCategory.id,
-        walletId: selectedWallet.id,
-        date,
-        time,
-        note: note.trim(),
-      }, 'validation.transactionSaveFailed');
+      type,
+      amount: selectedAmount,
+      categoryId: selectedCategory.id,
+      walletId: selectedWallet.id,
+      sourceWalletId: undefined,
+      destinationWalletId: undefined,
+      adjustmentDirection: undefined,
+      date,
+      time,
+      note: note.trim(),
+    }, 'validation.transactionSaveFailed');
   };
 
   return (

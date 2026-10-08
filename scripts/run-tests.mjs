@@ -18,6 +18,8 @@ const result = spawnSync(
     'src/features/finance/phase2Engine.test.mts',
     'src/i18n/i18n.test.mts',
     'src/lib/serializedStorage.test.mts',
+    'src/lib/transactionRoutes.test.mts',
+    'src/lib/transactionSearch.test.mts',
     'src/store/financeStore.test.mts',
     'src/store/financeIsolation.test.mts',
     'src/lib/formatters.test.mts',

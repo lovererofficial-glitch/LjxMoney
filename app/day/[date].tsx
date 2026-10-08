@@ -12,6 +12,7 @@ import {
 import { formatLocalizedCurrency, formatLocalizedDate } from '../../src/i18n/formatting';
 import { useI18n } from '../../src/i18n';
 import { useFinanceStore } from '../../src/store/financeStore';
+import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
 export default function DayDetailScreen() {
@@ -79,7 +80,7 @@ export default function DayDetailScreen() {
               key={transaction.id}
               transaction={transaction}
               onPress={() =>
-                router.push({ pathname: '/transaction/id', params: { id: transaction.id } })
+                router.push(transactionDetailRoute(transaction.id))
               }
               showDate={false}
             />

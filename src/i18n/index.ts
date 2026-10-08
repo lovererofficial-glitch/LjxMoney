@@ -94,6 +94,7 @@ const walletErrorKeys: Record<string, TranslationKey> = {
   'Enter a valid transaction time.': 'validation.validTime',
   'Choose valid source and destination wallets for the transfer.': 'validation.validSource',
   'Insufficient balance in source wallet.': 'validation.insufficientBalance',
+  'Choose a valid source and destination wallet for the transfer.': 'validation.validSource',
   'Transfer source and destination must be different wallets.': 'validation.differentWallets',
   'Choose a valid wallet.': 'validation.chooseWallet',
   'Choose a valid category.': 'validation.chooseCategory',

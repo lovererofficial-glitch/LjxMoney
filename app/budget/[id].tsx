@@ -11,6 +11,7 @@ import { formatLocalizedCurrency, formatLocalizedDate } from '../../src/i18n/for
 import { localizeCategoryName, useI18n } from '../../src/i18n';
 import type { TranslationKey } from '../../src/i18n';
 import { useFinanceStore } from '../../src/store/financeStore';
+import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 import { colors, radius, spacing } from '../../src/theme/theme';
 
 export default function BudgetDetailScreen() {
@@ -106,7 +107,7 @@ export default function BudgetDetailScreen() {
           <TransactionRow
             key={transaction.id}
             transaction={transaction}
-            onPress={() => router.push({ pathname: '/transaction/[id]', params: { id: transaction.id } })}
+            onPress={() => router.push(transactionDetailRoute(transaction.id))}
           />
         )) : <Text style={styles.meta}>{t('budget.noSpending')}</Text>}
       </View>

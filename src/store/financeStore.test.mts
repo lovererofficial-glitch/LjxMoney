@@ -10,6 +10,7 @@ import {
   calculateWalletBalance,
 } from '../features/finance/financeEngine.ts';
 import type { Budget, GoalContribution, SavingsGoal, Transaction, Wallet } from '../features/finance/models.ts';
+import { findTransactionById, transactionDetailRoute, transactionDetailRouteId } from '../lib/transactionRoutes.ts';
 import { createFinanceStore, registerSyncDeletionListener } from './financeStoreCore.ts';
 
 const createMemoryStorage = (): StateStorage => {
@@ -172,6 +173,21 @@ test('custom wallet name stays independent from wallet type through hydration an
   const updated = createFinanceStore(storage).getState().wallets.find((wallet) => wallet.id === 'wallet-mb');
   assert.equal(updated?.name, 'MB');
   assert.equal(updated?.type, 'ewallet');
+});
+
+test('transaction detail resolves the exact transaction after hydration and not after deletion', () => {
+  const storage = createMemoryStorage();
+  const store = createFinanceStore(storage);
+  const transaction = makeTransaction('detail-hydrated-id', 'income', 250, '2026-10-08');
+  store.getState().addTransaction(transaction);
+
+  const hydratedStore = createFinanceStore(storage);
+  const routeId = transactionDetailRouteId(transactionDetailRoute(transaction.id));
+  assert.equal(findTransactionById(hydratedStore.getState().transactions, routeId)?.id, transaction.id);
+
+  hydratedStore.getState().deleteTransaction(transaction.id);
+  assert.equal(findTransactionById(hydratedStore.getState().transactions, routeId), undefined);
+  assert.equal(findTransactionById(hydratedStore.getState().transactions, 'different-id'), undefined);
 });
 
 test('archived wallets reject new transactions but preserve historical edits and balances', () => {
@@ -359,6 +375,30 @@ test('transfer rejects same, archived, and insufficient source wallets at the se
     () => store.getState().addTransaction(makeTransfer('archived-destination', 100_000, '2026-10-06', 'cash', 'bank')),
     /valid source and destination/i,
   );
+});
+
+test('changing transfer to expense removes transfer-only fields and reverses the old wallet pair', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  store.getState().updateWallet('cash', { initialBalance: 1_000_000 });
+  store.getState().addTransaction(makeTransfer('change-type', 200_000, '2026-10-01', 'cash', 'bank'));
+
+  store.getState().updateTransaction('change-type', {
+    type: 'expense',
+    amount: 100_000,
+    categoryId: 'food',
+    walletId: 'cash',
+    sourceWalletId: undefined,
+    destinationWalletId: undefined,
+  });
+
+  const updated = store.getState().transactions[0]!;
+  assert.equal(updated.type, 'expense');
+  assert.equal(updated.sourceWalletId, undefined);
+  assert.equal(updated.destinationWalletId, undefined);
+  assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), 900_000);
+  assert.equal(calculateWalletBalance('bank', store.getState().transactions, store.getState().wallets), 0);
+  assert.equal(calculateIncome(store.getState().transactions), 0);
+  assert.equal(calculateExpense(store.getState().transactions), 100_000);
 });
 
 test('budget and goal actions persist CRUD, archive, and contribution history across store hydration', () => {

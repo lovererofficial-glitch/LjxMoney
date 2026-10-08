@@ -68,6 +68,13 @@ test('transfer form labels and validation are localized in Vietnamese and Englis
   assert.equal(translate('en', 'validation.insufficientBalance'), 'Insufficient balance in source wallet.');
 });
 
+test('transaction search empty state is localized separately from the no-transaction state', () => {
+  assert.equal(translate('vi', 'search.noMatchingTransactions'), 'Không tìm thấy giao dịch phù hợp');
+  assert.equal(translate('en', 'search.noMatchingTransactions'), 'No matching transactions');
+  assert.equal(translate('vi', 'empty.noTransactions'), 'Chưa có giao dịch');
+  assert.equal(translate('en', 'empty.noTransactions'), 'No transactions yet');
+});
+
 test('sync error labels are localized in both languages', () => {
   assert.equal(translate('vi', 'sync.details'), 'Chi tiết:');
   assert.equal(translate('vi', 'sync.retry'), 'Thử lại');

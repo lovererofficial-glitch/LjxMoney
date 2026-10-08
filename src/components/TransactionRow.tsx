@@ -50,7 +50,8 @@ export const TransactionRow = ({
   const titleText =
     transaction.type === 'transfer'
       ? `${sourceWalletName || t('transaction.from')} → ${destinationWalletName || t('transaction.to')}`
-      : transaction.note.trim() || categoryName || t('transaction.transaction');
+      : transaction.note.trim() ||
+        (transaction.type === 'adjustment' ? typeLabel : categoryName || t('transaction.transaction'));
   const metaText =
     transaction.type === 'transfer'
       ? [sourceWalletName, destinationWalletName, showDate ? formatLocalizedDate(parseISO(transaction.date), 'dd MMM', language) : null]

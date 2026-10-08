@@ -6,6 +6,7 @@ import { calculateWalletBalance } from '../../src/features/finance/financeEngine
 import { useFinanceStore } from '../../src/store/financeStore';
 import { localizeCategoryName, localizeWalletName, localizeWalletType, useI18n } from '../../src/i18n';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
+import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 
 export default function WalletDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -125,7 +126,7 @@ export default function WalletDetailScreen() {
                 key={transaction.id}
                 onPress={transaction.type === 'adjustment'
                   ? () => router.push(`/wallets/adjust/${wallet.id}?transactionId=${transaction.id}`)
-                  : () => router.push({ pathname: '/transaction/id', params: { id: transaction.id } })}
+                  : () => router.push(transactionDetailRoute(transaction.id))}
                 style={styles.row}
               >
                 <Text style={styles.rowDate}>{transaction.date}</Text>

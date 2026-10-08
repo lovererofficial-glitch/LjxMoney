@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { Category, Transaction, Wallet } from '../features/finance/models.ts';
+import { findTransactionById, transactionDetailRoute, transactionDetailRouteId } from '../lib/transactionRoutes.ts';
 import { runSyncCycle, type SyncEngineDeps } from './syncEngine.ts';
 import {
   classifySyncError,
@@ -242,6 +243,13 @@ test('transfer syncs offline, restores from cloud, and repeated cycles do not du
   assert.equal(restore.getLocal().transactions[0]?.type, 'transfer');
   assert.equal(restore.getLocal().transactions[0]?.sourceWalletId, 'cash');
   assert.equal(restore.getLocal().transactions[0]?.destinationWalletId, 'bank');
+  assert.equal(
+    findTransactionById(
+      restore.getLocal().transactions,
+      transactionDetailRouteId(transactionDetailRoute('transfer-offline')),
+    )?.id,
+    'transfer-offline',
+  );
 
   const localAfterDelete = restore.getLocal();
   localAfterDelete.transactions = [];

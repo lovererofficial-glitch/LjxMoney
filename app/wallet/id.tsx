@@ -8,6 +8,7 @@ import { calculateWalletBalance } from '../../src/features/finance/financeEngine
 import { formatLocalizedCurrency } from '../../src/i18n/formatting';
 import { localizeWalletName, localizeWalletType, useI18n } from '../../src/i18n';
 import { useFinanceStore } from '../../src/store/financeStore';
+import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
 export default function WalletDetailScreen() {
@@ -78,7 +79,7 @@ export default function WalletDetailScreen() {
         <TransactionRow
           key={transaction.id}
           transaction={transaction}
-          onPress={() => router.push({ pathname: '/transaction/id', params: { id: transaction.id } })}
+          onPress={() => router.push(transactionDetailRoute(transaction.id))}
         />
       )) : (
         <View style={styles.empty}>
