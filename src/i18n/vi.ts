@@ -57,6 +57,16 @@ const vi: TranslationShape<typeof en> = {
     balancePrivacy: 'Ẩn số dư',
     balancePrivacyHint: 'Che các số tiền nhạy cảm trong ứng dụng.',
   },
+  profile: {
+    title: 'Hồ sơ',
+    changePhoto: 'Đổi ảnh đại diện',
+    removePhoto: 'Xóa ảnh',
+    permissionDeniedTitle: 'Cần quyền truy cập',
+    permissionDeniedMessage: 'Vui lòng cho phép truy cập ảnh để cập nhật ảnh đại diện.',
+    uploadFailed: 'Không thể cập nhật ảnh đại diện.',
+    removeTitle: 'Xóa ảnh',
+    removeMessage: 'Quay lại fallback chữ cái?',
+  },
   home: {
     today: 'Hôm nay',
     income: 'Thu nhập',

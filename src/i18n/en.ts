@@ -54,6 +54,16 @@ const en = {
     balancePrivacy: 'Hide balance',
     balancePrivacyHint: 'Mask sensitive amounts in the app.',
   },
+  profile: {
+    title: 'Profile',
+    changePhoto: 'Change photo',
+    removePhoto: 'Remove photo',
+    permissionDeniedTitle: 'Permission required',
+    permissionDeniedMessage: 'Please allow access to your photos to update your profile picture.',
+    uploadFailed: 'Unable to update profile photo.',
+    removeTitle: 'Remove photo',
+    removeMessage: 'Return to your initials fallback?',
+  },
   home: {
     today: 'Today',
     income: 'Income',

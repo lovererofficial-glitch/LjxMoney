@@ -8,6 +8,8 @@ import { useI18n } from '../src/i18n';
 import { useLanguageStore } from '../src/i18n/runtime';
 import type { Language } from '../src/i18n/types';
 import { useAuthStore } from '../src/auth/authStore';
+import { Avatar } from '../src/profile/Avatar';
+import { useProfileAvatarStore } from '../src/profile/avatarStore';
 import { colors, radius, spacing, typography } from '../src/theme/theme';
 import { useSecurityStore } from '../src/security/securityStore';
 
@@ -18,6 +20,7 @@ export default function SettingsScreen() {
   const { language, setLanguage, t } = useI18n();
   const hydrationError = useLanguageStore((state) => state.hydrationError);
   const authUser = useAuthStore((state) => state.user);
+  const avatarUri = useProfileAvatarStore((state) => (authUser ? state.avatars[authUser.id] ?? null : null));
   const isBalanceHidden = useSecurityStore((state) => state.isBalanceHidden);
   const toggleBalanceHidden = useSecurityStore((state) => state.toggleBalanceHidden);
   const appLockEnabled = useSecurityStore((state) => state.appLockEnabled);
@@ -82,15 +85,19 @@ export default function SettingsScreen() {
         <View style={styles.backButton} />
       </View>
 
-      <View style={styles.profileCard}>
-        <View style={styles.profileAvatar}>
-          <Text style={styles.profileAvatarText}>{(authUser?.email ?? 'LjxMoney').split('@')[0].slice(0, 2).toUpperCase() || 'LM'}</Text>
-        </View>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/profile')} style={styles.profileCard}>
+        <Avatar
+          userEmail={authUser?.email}
+          sourceName={authUser?.email ? authUser.email.split('@')[0] : 'LjxMoney'}
+          avatarUri={avatarUri}
+          size={52}
+          editable
+        />
         <View style={styles.profileMeta}>
           <Text style={styles.profileName}>{authUser?.email ? authUser.email.split('@')[0] : 'LjxMoney'}</Text>
           <Text style={styles.profileEmail}>{authUser?.email ?? 'ljxmoney'}</Text>
         </View>
-      </View>
+      </Pressable>
 
       <Text style={styles.sectionHeading}>{t('settings.general')}</Text>
       <View style={styles.card}>

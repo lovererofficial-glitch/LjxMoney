@@ -16,6 +16,8 @@ import { formatLocalizedCurrency, formatLocalizedDate } from '../../src/i18n/for
 import { translateFinanceError, useI18n } from '../../src/i18n';
 import { useFinanceStore } from '../../src/store/financeStore';
 import { useAuthStore } from '../../src/auth/authStore';
+import { Avatar } from '../../src/profile/Avatar';
+import { useProfileAvatarStore } from '../../src/profile/avatarStore';
 import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 
@@ -32,14 +34,9 @@ export default function HomeScreen() {
   const hydrationError = useFinanceStore((state) => state.hydrationError);
   const checkToday = useFinanceStore((state) => state.checkToday);
   const authUser = useAuthStore((state) => state.user);
+  const avatarUri = useProfileAvatarStore((state) => (authUser ? state.avatars[authUser.id] ?? null : null));
   const userEmail = authUser?.email ?? 'LjxMoney';
-  const userInitials = userEmail
-    .split('@')[0]
-    .split(/[._\s-]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('') || 'LM';
+  const userDisplayName = authUser?.email ? authUser.email.split('@')[0] : 'LjxMoney';
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.date === today),
@@ -121,9 +118,12 @@ export default function HomeScreen() {
     >
       <View style={styles.headerRow}>
         <View style={styles.profileWrap}>
-          <View style={styles.avatarBubble}>
-            <Text style={styles.avatarText}>{userInitials}</Text>
-          </View>
+          <Avatar
+            userEmail={userEmail}
+            sourceName={userDisplayName}
+            avatarUri={avatarUri}
+            size={42}
+          />
           <View>
             <Text style={styles.eyebrow}>{formatLocalizedDate(new Date(), 'EEEE, dd MMMM', language)}</Text>
             <Text style={styles.title}>LjxMoney</Text>
