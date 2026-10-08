@@ -32,7 +32,7 @@ export const createSecurityStore = (storage: StateStorage) =>
         lastUnlockAt: null,
         setBalanceHidden: (hidden) => set({ isBalanceHidden: hidden }),
         toggleBalanceHidden: () => set((state) => ({ isBalanceHidden: !state.isBalanceHidden })),
-        setAppLockEnabled: (enabled) => set({ appLockEnabled: enabled, isAppLocked: enabled ? false : false }),
+        setAppLockEnabled: (enabled) => set({ appLockEnabled: enabled }),
         setAppLocked: (locked) => set({ isAppLocked: locked }),
         setHydrationState: (error) =>
           set({
