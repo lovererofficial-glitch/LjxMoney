@@ -168,9 +168,9 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.quickActions}>
-        <QuickAction label={t('home.addExpense')} onPress={() => createTransaction('expense')} />
-        <QuickAction label={t('home.addIncome')} onPress={() => createTransaction('income')} />
-        <QuickAction label={t('home.transfer')} onPress={() => createTransaction('transfer')} />
+        <QuickAction label={t('home.addExpense')} onPress={() => createTransaction('expense')} variant="expense" />
+        <QuickAction label={t('home.addIncome')} onPress={() => createTransaction('income')} variant="income" />
+        <QuickAction label={t('home.transfer')} onPress={() => createTransaction('transfer')} variant="transfer" />
       </View>
 
       <View style={styles.streakCard}>
@@ -286,9 +286,9 @@ export default function HomeScreen() {
   );
 }
 
-const QuickAction = ({ label, onPress }: { label: string; onPress: () => void }) => (
-  <Pressable accessibilityRole="button" onPress={onPress} style={styles.quickActionButton}>
-    <Text style={styles.quickActionLabel}>{label}</Text>
+const QuickAction = ({ label, onPress, variant }: { label: string; onPress: () => void; variant: 'income' | 'expense' | 'transfer' }) => (
+  <Pressable accessibilityRole="button" onPress={onPress} style={[styles.quickActionButton, variant === 'income' && styles.quickActionIncome, variant === 'expense' && styles.quickActionExpense, variant === 'transfer' && styles.quickActionTransfer]}>
+    <Text style={[styles.quickActionLabel, variant === 'income' && styles.quickActionLabelIncome, variant === 'expense' && styles.quickActionLabelExpense, variant === 'transfer' && styles.quickActionLabelTransfer]}>{label}</Text>
   </Pressable>
 );
 
@@ -350,8 +350,14 @@ const styles = StyleSheet.create({
   income: { color: colors.income },
   expense: { color: colors.expense },
   quickActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  quickActionButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.surface },
+  quickActionButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1 },
+  quickActionIncome: { backgroundColor: 'rgba(104, 242, 154, 0.08)', borderColor: 'rgba(104, 242, 154, 0.18)' },
+  quickActionExpense: { backgroundColor: 'rgba(255, 102, 114, 0.08)', borderColor: 'rgba(255, 102, 114, 0.18)' },
+  quickActionTransfer: { backgroundColor: 'rgba(215, 181, 109, 0.08)', borderColor: 'rgba(215, 181, 109, 0.18)' },
   quickActionLabel: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  quickActionLabelIncome: { color: colors.income },
+  quickActionLabelExpense: { color: colors.expense },
+  quickActionLabelTransfer: { color: colors.warning },
   streakCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.lg },
   streakCopy: { flex: 1 },
   streakEyebrow: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
