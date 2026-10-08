@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { StateStorage } from 'zustand/middleware';
 
 import type { AuthState } from '../auth/authTypes.ts';
-import type { Transaction } from '../features/finance/models.ts';
+import type { Transaction, Wallet } from '../features/finance/models.ts';
 import { createFinanceStore } from './financeStoreCore.ts';
 import { createOwnerScopedStorage, financeKeyForOwner } from './financeOwnerStorage.ts';
 import { createFinanceSessionController } from './financeSession.ts';
@@ -163,6 +163,37 @@ test('user B never sees user A data', async () => {
   assert.ok(!bRaw?.includes('txn-a'));
 });
 
+test('wallets remain scoped to their owner across logout and account switches', async () => {
+  const harness = makeHarness();
+  await harness.financeStore.persist.rehydrate();
+  harness.setAuth(loginAs('user-a', 'a@example.com'));
+  await flush();
+  const wallet: Wallet = {
+    id: 'wallet-a',
+    name: 'Wallet A',
+    type: 'cash',
+    color: '#D7B56D',
+    initialBalance: 0,
+    archivedAt: null,
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-01T00:00:00.000Z',
+  };
+  harness.financeStore.getState().addWallet(wallet);
+  await flush();
+
+  harness.setAuth({ status: 'unauthenticated', user: null });
+  await flush();
+  harness.setAuth(loginAs('user-b', 'b@example.com'));
+  await flush();
+  assert.ok(!harness.financeStore.getState().wallets.some((item) => item.id === wallet.id));
+
+  harness.setAuth({ status: 'unauthenticated', user: null });
+  await flush();
+  harness.setAuth(loginAs('user-a', 'a@example.com'));
+  await flush();
+  assert.ok(harness.financeStore.getState().wallets.some((item) => item.id === wallet.id));
+});
+
 test('guest data migrates to first account once, never leaks to second', async () => {
   const harness = makeHarness();
   await harness.financeStore.persist.rehydrate();
@@ -184,6 +215,7 @@ test('guest data migrates to first account once, never leaks to second', async (
   assert.ok(
     !harness.financeStore.getState().transactions.some((item) => item.id === 'guest-txn'),
   );
+});
 
 test('stale apply from user A is ignored after switching to user B', async () => {
   const harness = makeHarness();
@@ -218,5 +250,4 @@ test('stale apply from user A is ignored after switching to user B', async () =>
   assert.ok(
     !harness.financeStore.getState().transactions.some((item) => item.id === 'txn-a-late'),
   );
-});
 });

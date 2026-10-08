@@ -83,6 +83,7 @@ interface FinanceState {
   addWallet: (wallet: Wallet) => void;
   updateWallet: (walletId: string, updates: Partial<Wallet>) => void;
   archiveWallet: (walletId: string) => void;
+  restoreWallet: (walletId: string) => void;
   addCategory: (category: Category) => void;
   updateCategory: (categoryId: string, updates: Partial<Category>) => void;
   archiveCategory: (categoryId: string) => void;
@@ -119,6 +120,7 @@ const validateTransaction = (
   transaction: Transaction,
   categories: Category[],
   wallets: Wallet[],
+  allowArchivedWallets = false,
 ) => {
   if (!Number.isSafeInteger(transaction.amount) || transaction.amount <= 0) {
     throw new Error('Amount must be a positive whole number of VND.');
@@ -133,7 +135,11 @@ const validateTransaction = (
   if (transaction.type === 'transfer') {
     const sourceWallet = wallets.find((wallet) => wallet.id === transaction.sourceWalletId);
     const destinationWallet = wallets.find((wallet) => wallet.id === transaction.destinationWalletId);
-    if (!sourceWallet || !destinationWallet) {
+    if (
+      !sourceWallet ||
+      !destinationWallet ||
+      (!allowArchivedWallets && (sourceWallet.archivedAt || destinationWallet.archivedAt))
+    ) {
       throw new Error('Choose valid source and destination wallets for the transfer.');
     }
     if (transaction.sourceWalletId === transaction.destinationWalletId) {
@@ -142,7 +148,8 @@ const validateTransaction = (
     return;
   }
 
-  if (!wallets.some((wallet) => wallet.id === transaction.walletId)) {
+  const wallet = wallets.find((item) => item.id === transaction.walletId);
+  if (!wallet || (!allowArchivedWallets && wallet.archivedAt)) {
     throw new Error('Choose a valid wallet.');
   }
   const category = categories.find((item) => item.id === transaction.categoryId);
@@ -162,6 +169,23 @@ const calculateBalances = (transactions: Transaction[], wallets: Wallet[]) =>
     transactions,
     wallets.reduce((total, wallet) => total + wallet.initialBalance, 0),
   );
+
+const validateWalletName = (name: string, wallets: Wallet[], excludedId?: string) => {
+  const normalizedName = name.trim().toLocaleLowerCase();
+  if (!normalizedName) {
+    throw new Error('Enter a wallet name.');
+  }
+  if (wallets.some((wallet) => wallet.id !== excludedId && wallet.name.trim().toLocaleLowerCase() === normalizedName)) {
+    throw new Error('A wallet with this name already exists.');
+  }
+};
+
+const normalizeWalletTimestamp = (timestamp: string | undefined, fallback: string) => {
+  if (!timestamp || !Number.isFinite(Date.parse(timestamp))) {
+    return fallback;
+  }
+  return new Date(timestamp).toISOString();
+};
 
 const validateBudget = (budget: Budget, categories: Category[]) => {
   if (!budget.name.trim()) {
@@ -244,7 +268,7 @@ export const createFinanceStore = (storage: StateStorage) =>
           createdAt: existing.createdAt,
           updatedAt: new Date().toISOString(),
         };
-        validateTransaction(updated, state.categories, state.wallets);
+        validateTransaction(updated, state.categories, state.wallets, true);
         const transactions = state.transactions.map((item) =>
           item.id === transactionId ? updated : item,
         );
@@ -269,7 +293,14 @@ export const createFinanceStore = (storage: StateStorage) =>
       },
       addWallet: (wallet) => {
         const state = get();
-        const normalized = normalizeWallet(wallet);
+        const now = new Date().toISOString();
+        validateWalletName(wallet.name, state.wallets);
+        const normalized = normalizeWallet({
+          ...wallet,
+          name: wallet.name.trim(),
+          createdAt: normalizeWalletTimestamp(wallet.createdAt, now),
+          updatedAt: normalizeWalletTimestamp(wallet.updatedAt, now),
+        });
         if (state.wallets.some((item) => item.id === normalized.id)) {
           throw new Error('A wallet with this ID already exists.');
         }
@@ -282,7 +313,15 @@ export const createFinanceStore = (storage: StateStorage) =>
         if (!existing) {
           throw new Error('This wallet no longer exists.');
         }
-        const updated = normalizeWallet({ ...existing, ...updates, updatedAt: new Date().toISOString() });
+        const name = updates.name === undefined ? existing.name : updates.name.trim();
+        validateWalletName(name, state.wallets, walletId);
+        const updated = normalizeWallet({
+          ...existing,
+          ...updates,
+          name,
+          createdAt: normalizeWalletTimestamp(existing.createdAt, new Date().toISOString()),
+          updatedAt: new Date().toISOString(),
+        });
         const wallets = state.wallets.map((wallet) => (wallet.id === walletId ? updated : wallet));
         set({ wallets, balances: calculateBalances(state.transactions, wallets) });
       },
@@ -292,11 +331,26 @@ export const createFinanceStore = (storage: StateStorage) =>
         if (!existing) {
           throw new Error('This wallet no longer exists.');
         }
+        const now = new Date().toISOString();
         set({
           wallets: state.wallets.map((wallet) =>
             wallet.id === walletId
-              ? { ...wallet, archivedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+              ? { ...wallet, archivedAt: now, updatedAt: now }
               : wallet,
+          ),
+          balances: calculateBalances(state.transactions, state.wallets),
+        });
+      },
+      restoreWallet: (walletId) => {
+        const state = get();
+        const existing = state.wallets.find((wallet) => wallet.id === walletId);
+        if (!existing) {
+          throw new Error('This wallet no longer exists.');
+        }
+        const now = new Date().toISOString();
+        set({
+          wallets: state.wallets.map((wallet) =>
+            wallet.id === walletId ? { ...wallet, archivedAt: null, updatedAt: now } : wallet,
           ),
         });
       },

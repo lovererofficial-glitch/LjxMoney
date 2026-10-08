@@ -102,6 +102,62 @@ test('wallet actions preserve initial balance and transaction history through ar
   assert.equal(store.getState().wallets.find((item) => item.id === wallet.id)?.archivedAt, null);
 });
 
+test('wallet CRUD trims names, rejects duplicates, persists, and keeps valid timestamps', () => {
+  const storage = createMemoryStorage();
+  const store = createFinanceStore(storage);
+  store.getState().addWallet({ ...makeWallet('reserve'), name: '  Reserve  ' });
+
+  const created = store.getState().wallets.find((item) => item.id === 'reserve');
+  assert.equal(created?.name, 'Reserve');
+  assert.ok(created?.createdAt && Number.isFinite(Date.parse(created.createdAt)));
+  assert.ok(created?.updatedAt && Number.isFinite(Date.parse(created.updatedAt)));
+  assert.throws(() => store.getState().addWallet({ ...makeWallet('reserve-2'), name: ' reserve ' }), /name already exists/i);
+  store.getState().addWallet({ ...makeWallet('bad-dates'), createdAt: 'invalid', updatedAt: 'invalid' });
+  const repairedDates = store.getState().wallets.find((item) => item.id === 'bad-dates');
+  assert.ok(repairedDates?.createdAt && Number.isFinite(Date.parse(repairedDates.createdAt)));
+  assert.ok(repairedDates?.updatedAt && Number.isFinite(Date.parse(repairedDates.updatedAt)));
+
+  store.getState().updateWallet('reserve', { name: '  Emergency fund  ' });
+  assert.equal(store.getState().wallets.find((item) => item.id === 'reserve')?.name, 'Emergency fund');
+  assert.throws(() => store.getState().updateWallet('reserve', { name: '   ' }), /wallet name/i);
+
+  const restoredFromStorage = createFinanceStore(storage);
+  assert.equal(restoredFromStorage.getState().wallets.find((item) => item.id === 'reserve')?.name, 'Emergency fund');
+});
+
+test('archived wallets reject new transactions but preserve historical edits and balances', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  const wallet = makeWallet('archive-me', 2_000);
+  store.getState().addWallet(wallet);
+  store.getState().addTransaction(makeTransaction('historical-income', 'income', 500, '2026-10-01', wallet.id));
+  store.getState().archiveWallet(wallet.id);
+
+  assert.throws(
+    () => store.getState().addTransaction(makeTransaction('new-expense', 'expense', 100, '2026-10-02', wallet.id)),
+    /valid wallet/i,
+  );
+  store.getState().updateTransaction('historical-income', { date: '2026-10-03' });
+  assert.equal(calculateWalletBalance(wallet.id, store.getState().transactions, store.getState().wallets), 2_500);
+  assert.equal(store.getState().transactions.length, 1);
+
+  store.getState().restoreWallet(wallet.id);
+  assert.equal(store.getState().wallets.find((item) => item.id === wallet.id)?.archivedAt, null);
+});
+
+test('wallet balance follows transaction edits, wallet changes, and deletion', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  store.getState().addWallet(makeWallet('secondary'));
+  store.getState().addTransaction(makeTransaction('income', 'income', 1_000, '2026-10-01'));
+  store.getState().addTransaction(makeTransaction('expense', 'expense', 200, '2026-10-02'));
+  assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), 800);
+
+  store.getState().updateTransaction('income', { walletId: 'secondary', date: '2026-10-04' });
+  assert.equal(calculateWalletBalance('cash', store.getState().transactions, store.getState().wallets), -200);
+  assert.equal(calculateWalletBalance('secondary', store.getState().transactions, store.getState().wallets), 1_000);
+  store.getState().deleteTransaction('income');
+  assert.equal(calculateWalletBalance('secondary', store.getState().transactions, store.getState().wallets), 0);
+});
+
 test('transfer actions update both wallet balances without changing cash flow', () => {
   const store = createFinanceStore(createMemoryStorage());
   store.getState().addTransaction(makeTransaction('income', 'income', 1_000, '2026-10-01'));

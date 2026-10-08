@@ -239,6 +239,39 @@ test('reconnect syncs the offline change without duplicates', async () => {
   assert.equal(harness.cloud.tables.wallets.size, 1);
 });
 
+test('wallet create, edit, archive, and restore sync through offline reconnect without duplicates', async () => {
+  const harness = makeHarness();
+  const local = withBaseData(emptySnapshot());
+  harness.setLocal(local);
+  await runSyncCycle(harness.deps);
+
+  harness.cloud.setOffline(true);
+  const offlineEdit = harness.getLocal();
+  offlineEdit.wallets[0] = {
+    ...offlineEdit.wallets[0]!,
+    name: 'Cash updated',
+    archivedAt: NOW,
+    updatedAt: NOW,
+  };
+  offlineEdit.wallets.push({ ...wallet('savings-wallet', NOW), name: 'Savings', type: 'savings' });
+  harness.setLocal(offlineEdit);
+  await assert.rejects(() => runSyncCycle(harness.deps));
+
+  harness.cloud.setOffline(false);
+  await runSyncCycle(harness.deps);
+  assert.equal(harness.cloud.tables.wallets.size, 2);
+  assert.equal(harness.cloud.tables.wallets.get('cash')?.name, 'Cash updated');
+  assert.equal(harness.cloud.tables.wallets.get('cash')?.archivedAt, NOW);
+
+  const restore = harness.getLocal();
+  restore.wallets[0] = { ...restore.wallets[0]!, archivedAt: null, updatedAt: '2026-10-07T12:00:01.000Z' };
+  harness.setLocal(restore);
+  await runSyncCycle(harness.deps);
+  assert.equal(harness.cloud.tables.wallets.get('cash')?.archivedAt, null);
+  await runSyncCycle(harness.deps);
+  assert.equal(harness.cloud.tables.wallets.size, 2);
+});
+
 test('delete sync: offline deletion eventually removes the cloud row', async () => {
   const harness = makeHarness();
   const local = withBaseData(emptySnapshot());
