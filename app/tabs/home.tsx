@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BalanceCard } from '../../src/components/BalanceCard';
@@ -116,7 +117,7 @@ export default function HomeScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.headerRow}>
+      <Animated.View entering={FadeInDown.duration(360)} style={styles.headerRow}>
         <View style={styles.profileWrap}>
           <Avatar
             userEmail={userEmail}
@@ -146,7 +147,7 @@ export default function HomeScreen() {
             <Text style={styles.addLabel}>+ {t('common.add')}</Text>
           </Pressable>
         </View>
-      </View>
+      </Animated.View>
 
       {hydrationError ? (
         <Text accessibilityRole="alert" style={styles.errorBanner}>
@@ -154,8 +155,15 @@ export default function HomeScreen() {
         </Text>
       ) : null}
 
-      <BalanceCard balance={totalBalance} />
-      <View style={styles.section}>
+      <Animated.View entering={FadeInDown.delay(80).duration(440)} style={styles.heroStack}>
+        <BalanceCard balance={totalBalance} />
+        <View style={styles.floatingMetrics}>
+          <MetricPill label={t('home.income')} value={todayIncome} tone="income" language={language} />
+          <MetricPill label={t('home.expense')} value={todayExpense} tone="expense" language={language} />
+        </View>
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(160).duration(420)} style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.today')}</Text>
           <Text style={styles.todayDate}>{formatLocalizedDate(new Date(), 'dd MMM', language)}</Text>
@@ -165,13 +173,13 @@ export default function HomeScreen() {
           <SummaryItem label={t('home.expense')} value={todayExpense} tone="expense" language={language} />
           <SummaryItem label={t('home.net')} value={todayIncome - todayExpense} tone={todayIncome >= todayExpense ? 'income' : 'expense'} language={language} />
         </View>
-      </View>
+      </Animated.View>
 
-      <View style={styles.quickActions}>
+      <Animated.View entering={FadeInDown.delay(220).duration(420)} style={styles.quickActions}>
         <QuickAction label={t('home.addExpense')} onPress={() => createTransaction('expense')} variant="expense" />
         <QuickAction label={t('home.addIncome')} onPress={() => createTransaction('income')} variant="income" />
         <QuickAction label={t('home.transfer')} onPress={() => createTransaction('transfer')} variant="transfer" />
-      </View>
+      </Animated.View>
 
       <View style={styles.streakCard}>
         <Pressable onPress={() => router.push('/streak')} style={styles.streakCopy}>
@@ -292,6 +300,23 @@ const QuickAction = ({ label, onPress, variant }: { label: string; onPress: () =
   </Pressable>
 );
 
+const MetricPill = ({
+  label,
+  value,
+  tone,
+  language,
+}: {
+  label: string;
+  value: number;
+  tone: 'income' | 'expense';
+  language: 'vi' | 'en';
+}) => (
+  <View style={[styles.metricPill, tone === 'income' ? styles.metricPillIncome : styles.metricPillExpense]}>
+    <Text style={styles.metricPillLabel}>{label}</Text>
+    <Text style={[styles.metricPillValue, tone === 'income' ? styles.income : styles.expense]}>{formatLocalizedCurrency(value, language)}</Text>
+  </View>
+);
+
 const SummaryItem = ({
   label,
   value,
@@ -338,19 +363,38 @@ const styles = StyleSheet.create({
   addLabel: { color: colors.accent, fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.76 },
   errorBanner: { color: colors.expense, backgroundColor: colors.surface, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.md },
+  heroStack: { marginBottom: spacing.lg },
+  floatingMetrics: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, marginHorizontal: 2 },
+  metricPill: {
+    flex: 1,
+    minHeight: 72,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  metricPillIncome: { backgroundColor: 'rgba(104, 242, 154, 0.06)' },
+  metricPillExpense: { backgroundColor: 'rgba(255, 102, 114, 0.06)' },
+  metricPillLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' },
+  metricPillValue: { marginTop: spacing.xs, fontSize: 18, fontWeight: '700' },
   section: { marginTop: spacing.lg },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
   sectionTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   todayDate: { color: colors.textSecondary, fontSize: 14 },
   viewAll: { color: colors.accent, fontSize: 14, fontWeight: '600' },
-  summaryCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md },
+  summaryCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
   summaryItem: { flex: 1, minWidth: 0, minHeight: 52, justifyContent: 'center' },
   summaryLabel: { color: colors.textSecondary, fontSize: 13, marginBottom: 5 },
   summaryValue: { color: colors.text, fontSize: 15, fontWeight: '700' },
   income: { color: colors.income },
   expense: { color: colors.expense },
   quickActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  quickActionButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1 },
+  quickActionButton: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 8 } },
   quickActionIncome: { backgroundColor: 'rgba(104, 242, 154, 0.08)', borderColor: 'rgba(104, 242, 154, 0.18)' },
   quickActionExpense: { backgroundColor: 'rgba(255, 102, 114, 0.08)', borderColor: 'rgba(255, 102, 114, 0.18)' },
   quickActionTransfer: { backgroundColor: 'rgba(215, 181, 109, 0.08)', borderColor: 'rgba(215, 181, 109, 0.18)' },

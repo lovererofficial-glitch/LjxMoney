@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { formatLocalizedCurrency } from '../i18n/formatting';
 import { useI18n } from '../i18n';
@@ -16,35 +16,41 @@ export const BalanceCard = ({ balance }: BalanceCardProps) => {
   const toggleBalanceHidden = useSecurityStore((state) => state.toggleBalanceHidden);
 
   return (
-    <Animated.View entering={FadeIn.duration(350)} style={styles.card}>
-      <View style={styles.glow} />
-      <View style={styles.mesh} />
-      <View style={styles.labelRow}>
-        <View style={styles.accent} />
-        <Text style={styles.label}>{t('home.totalBalance')}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={isBalanceHidden ? 'Show balance' : 'Hide balance'}
-          onPress={toggleBalanceHidden}
-          style={styles.eyeButton}
-        >
-          <Text style={styles.eyeText}>{isBalanceHidden ? '◉' : '◌'}</Text>
-        </Pressable>
-      </View>
-      <Animated.Text entering={FadeIn.duration(350)} style={styles.balance} numberOfLines={1} adjustsFontSizeToFit>
-        {isBalanceHidden ? '••••••' : formatLocalizedCurrency(balance, language)}
-      </Animated.Text>
-      <View style={styles.metaRow}>
-        <View style={styles.metaPill}>
-          <Text style={styles.metaText}>Live</Text>
+    <Animated.View entering={FadeInDown.duration(480).springify()} style={styles.cardWrap}>
+      <Animated.View entering={FadeInDown.delay(120).duration(460)} style={styles.card}>
+        <View style={styles.glow} />
+        <View style={styles.lightSweep} />
+        <View style={styles.mesh} />
+        <View style={styles.labelRow}>
+          <View style={styles.accent} />
+          <Text style={styles.label}>{t('home.totalBalance')}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isBalanceHidden ? 'Show balance' : 'Hide balance'}
+            onPress={toggleBalanceHidden}
+            style={styles.eyeButton}
+          >
+            <Text style={styles.eyeText}>{isBalanceHidden ? '◉' : '◌'}</Text>
+          </Pressable>
         </View>
-        <Text style={styles.metaLabel}>Portfolio balance</Text>
-      </View>
+        <Animated.Text entering={FadeInDown.delay(140).duration(420)} style={styles.balance} numberOfLines={1} adjustsFontSizeToFit>
+          {isBalanceHidden ? '••••••' : formatLocalizedCurrency(balance, language)}
+        </Animated.Text>
+        <View style={styles.metaRow}>
+          <View style={styles.metaPill}>
+            <Text style={styles.metaText}>Live</Text>
+          </View>
+          <Text style={styles.metaLabel}>Portfolio balance</Text>
+        </View>
+      </Animated.View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
+  cardWrap: {
+    transform: [{ perspective: 1200 }, { rotateX: '6deg' }, { rotateY: '-8deg' }, { translateY: -4 }],
+  },
   card: {
     position: 'relative',
     overflow: 'hidden',
@@ -54,26 +60,31 @@ const styles = StyleSheet.create({
     minHeight: 180,
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,255,255,0.08)',
     shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 18 },
   },
   glow: {
     position: 'absolute',
-    right: -36,
-    top: -48,
+    right: -20,
+    top: -28,
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: colors.glow,
+    backgroundColor: 'rgba(111, 166, 255, 0.14)',
+  },
+  lightSweep: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'linear-gradient(140deg, rgba(255,255,255,0.18), rgba(255,255,255,0))',
   },
   mesh: {
     position: 'absolute',
     inset: 0,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.03)',
+    borderColor: 'rgba(255,255,255,0.04)',
     backgroundColor: 'rgba(255,255,255,0.01)',
   },
   labelRow: {
