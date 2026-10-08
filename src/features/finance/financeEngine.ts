@@ -41,6 +41,11 @@ export const calculateIncome = (transactions: Transaction[]) => sumByType(transa
 
 export const calculateExpense = (transactions: Transaction[]) => sumByType(transactions, 'expense');
 
+export const calculateTransferTotal = (transactions: Transaction[]) =>
+  transactions
+    .filter((transaction) => transaction.type === 'transfer')
+    .reduce((total, transaction) => total + transaction.amount, 0);
+
 export const getSignedAdjustmentAmount = (
   transaction: Pick<Transaction, 'amount' | 'adjustmentDirection'>,
 ) => transaction.adjustmentDirection === 'decrease' ? -transaction.amount : transaction.amount;
@@ -73,6 +78,19 @@ export const calculateAdjustment = (transactions: Transaction[]) =>
 
 export const calculateNetCashFlow = (transactions: Transaction[]) =>
   calculateIncome(transactions) - calculateExpense(transactions) + calculateAdjustment(transactions);
+
+export const getStatisticsSummary = (transactions: Transaction[]) => {
+  const income = calculateIncome(transactions);
+  const expense = calculateExpense(transactions);
+  return {
+    income,
+    expense,
+    net: income - expense,
+    transactionCount: transactions.length,
+    transferTotal: calculateTransferTotal(transactions),
+    adjustmentTotal: calculateAdjustment(transactions),
+  };
+};
 
 export const getOpeningBalance = (balances: DailyBalance[], date: string) => {
   const matchingBalance = balances.find((balance) => balance.date === date);
@@ -322,6 +340,28 @@ export const getCategorySpending = (
             transaction.categoryId !== '',
         )
         .reduce((sum, transaction) => sum + transaction.amount, 0),
+    }))
+    .filter((category) => category.total > 0)
+    .sort((first, second) => second.total - first.total);
+};
+
+export const getCategoryIncome = (
+  transactions: Transaction[],
+  categories: { id: string; name: string; type: 'income' | 'expense'; color: string }[],
+  start?: Date | string,
+  end?: Date | string,
+) => {
+  const incomeCategories = categories.filter((category) => category.type === 'income');
+  const filteredTransactions = start === undefined || end === undefined
+    ? transactions
+    : getTransactionsInDateRange(transactions, start, end);
+
+  return incomeCategories
+    .map((category) => ({
+      ...category,
+      total: filteredTransactions
+        .filter((transaction) => transaction.type === 'income' && transaction.categoryId === category.id)
+        .reduce((total, transaction) => total + transaction.amount, 0),
     }))
     .filter((category) => category.total > 0)
     .sort((first, second) => second.total - first.total);

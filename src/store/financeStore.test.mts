@@ -4,10 +4,14 @@ import type { StateStorage } from 'zustand/middleware';
 
 import {
   calculateBudgetSummary,
+  calculateDailyBalance,
   calculateExpense,
   calculateGoalSummary,
   calculateIncome,
+  calculateOpeningBalanceForDate,
+  calculateTransferTotal,
   calculateWalletBalance,
+  getStatisticsSummary,
 } from '../features/finance/financeEngine.ts';
 import type { Budget, GoalContribution, SavingsGoal, Transaction, Wallet } from '../features/finance/models.ts';
 import { findTransactionById, transactionDetailRoute, transactionDetailRouteId } from '../lib/transactionRoutes.ts';
@@ -401,6 +405,50 @@ test('changing transfer to expense removes transfer-only fields and reverses the
   assert.equal(calculateExpense(store.getState().transactions), 100_000);
 });
 
+test('expense edits and deletes update Statistics, Budget, and Calendar from shared transactions', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  store.getState().updateWallet('cash', { initialBalance: 1_000_000 });
+  store.getState().addBudget(makeBudget());
+  store.getState().addTransaction(makeTransaction('integration-expense', 'expense', 500_000, '2026-10-08'));
+  store.getState().addTransaction(makeTransfer('integration-transfer', 200_000, '2026-10-08', 'cash', 'bank'));
+
+  let transactions = store.getState().transactions;
+  let stats = getStatisticsSummary(transactions);
+  let budget = calculateBudgetSummary(store.getState().budgets[0]!, transactions, '2026-10-15');
+  let opening = calculateOpeningBalanceForDate('2026-10-08', transactions, store.getState().wallets);
+  let day = calculateDailyBalance('2026-10-08', transactions, opening);
+  assert.equal(stats.expense, 500_000);
+  assert.equal(stats.transferTotal, 200_000);
+  assert.equal(budget.spent, 500_000);
+  assert.equal(day.expense, 500_000);
+  assert.equal(day.closingBalance, 500_000);
+  assert.equal(calculateTransferTotal(transactions.filter((item) => item.date === '2026-10-08')), 200_000);
+
+  store.getState().updateTransaction('integration-expense', { amount: 700_000, date: '2026-10-09' });
+  transactions = store.getState().transactions;
+  stats = getStatisticsSummary(transactions);
+  budget = calculateBudgetSummary(store.getState().budgets[0]!, transactions, '2026-10-15');
+  opening = calculateOpeningBalanceForDate('2026-10-09', transactions, store.getState().wallets);
+  day = calculateDailyBalance('2026-10-09', transactions, opening);
+  assert.equal(stats.expense, 700_000);
+  assert.equal(stats.transferTotal, 200_000);
+  assert.equal(budget.spent, 700_000);
+  assert.equal(day.expense, 700_000);
+  assert.equal(day.closingBalance, 300_000);
+
+  store.getState().deleteTransaction('integration-expense');
+  transactions = store.getState().transactions;
+  stats = getStatisticsSummary(transactions);
+  budget = calculateBudgetSummary(store.getState().budgets[0]!, transactions, '2026-10-15');
+  opening = calculateOpeningBalanceForDate('2026-10-09', transactions, store.getState().wallets);
+  day = calculateDailyBalance('2026-10-09', transactions, opening);
+  assert.equal(stats.expense, 0);
+  assert.equal(stats.transferTotal, 200_000);
+  assert.equal(budget.spent, 0);
+  assert.equal(day.expense, 0);
+  assert.equal(day.closingBalance, 1_000_000);
+});
+
 test('budget and goal actions persist CRUD, archive, and contribution history across store hydration', () => {
   const storage = createMemoryStorage();
   const firstStore = createFinanceStore(storage);
@@ -439,6 +487,27 @@ test('budget and goal actions persist CRUD, archive, and contribution history ac
   assert.equal(finalStore.getState().transactions.length, 1);
 });
 
+test('budget can be deleted without deleting its historical expense transactions', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  store.getState().addBudget(makeBudget());
+  store.getState().addTransaction(makeTransaction('budget-expense', 'expense', 400, '2026-10-02'));
+
+  store.getState().deleteBudget('food-budget');
+  assert.equal(store.getState().budgets.length, 0);
+  assert.equal(store.getState().transactions[0]?.id, 'budget-expense');
+});
+
+test('new budgets reject archived expense categories while an existing budget can retain one', () => {
+  const store = createFinanceStore(createMemoryStorage());
+  store.getState().addBudget(makeBudget());
+  store.getState().archiveCategory('food');
+  assert.throws(
+    () => store.getState().addBudget({ ...makeBudget(), id: 'new-archived-category-budget' }),
+    /expense category/i,
+  );
+  assert.doesNotThrow(() => store.getState().updateBudget('food-budget', { amount: 2_000 }));
+});
+
 test('applySyncSnapshot adopts cloud data, recalculates balances, and no-ops when unchanged', () => {
   const store = createFinanceStore(createMemoryStorage());
   store.getState().addTransaction(makeTransaction('local', 'expense', 100, '2026-10-01'));
@@ -471,15 +540,17 @@ test('hard deletions notify sync listeners only for the removed ids', () => {
   const store = createFinanceStore(createMemoryStorage());
   store.getState().addTransaction(makeTransaction('txn-a', 'expense', 100, '2026-10-01'));
   store.getState().addTransaction(makeTransaction('txn-b', 'expense', 200, '2026-10-01'));
+  store.getState().addBudget(makeBudget());
 
   const seen: string[] = [];
   const unsubscribe = registerSyncDeletionListener((entity, id) => {
     seen.push(`${entity}:${id}`);
   });
   store.getState().deleteTransaction('txn-a');
+  store.getState().deleteBudget('food-budget');
   unsubscribe();
   store.getState().deleteTransaction('txn-b');
 
-  assert.deepEqual(seen, ['transactions:txn-a']);
+  assert.deepEqual(seen, ['transactions:txn-a', 'budgets:food-budget']);
   assert.equal(store.getState().transactions.length, 0);
 });

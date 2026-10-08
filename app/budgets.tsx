@@ -29,6 +29,7 @@ export default function BudgetsScreen() {
   const addBudget = useFinanceStore((state) => state.addBudget);
   const updateBudget = useFinanceStore((state) => state.updateBudget);
   const archiveBudget = useFinanceStore((state) => state.archiveBudget);
+  const deleteBudget = useFinanceStore((state) => state.deleteBudget);
   const hasHydrated = useFinanceStore((state) => state.hasHydrated);
   const [editingBudget, setEditingBudget] = useState<Budget | undefined>();
   const [formVisible, setFormVisible] = useState(false);
@@ -134,6 +135,15 @@ export default function BudgetsScreen() {
                   style={styles.actionButton}
                 >
                   <Text style={styles.archive}>{t('common.archive')}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => Alert.alert(t('budget.deleteConfirmation'), t('budget.deleteWarning'), [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    { text: t('common.delete'), style: 'destructive', onPress: () => deleteBudget(budget.id) },
+                  ])}
+                  style={styles.actionButton}
+                >
+                  <Text style={styles.archive}>{t('common.delete')}</Text>
                 </Pressable>
               </View>
             </View>

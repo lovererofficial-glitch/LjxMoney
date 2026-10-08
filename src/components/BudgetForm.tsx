@@ -91,7 +91,7 @@ export const BudgetForm = ({ initialBudget, onCancel, onSave }: BudgetFormProps)
           <View style={styles.headerSpace} />
         </View>
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]} keyboardShouldPersistTaps="handled">
-          <FieldLabel label={t('goal.name')} />
+          <FieldLabel label={t('budget.name')} />
           <TextInput value={name} onChangeText={setName} placeholder={t('budget.name')} placeholderTextColor={colors.textSecondary} style={styles.input} />
           <FieldLabel label={t('budget.limit')} />
           <TextInput

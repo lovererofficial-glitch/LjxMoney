@@ -34,11 +34,15 @@ export default function CalendarScreen() {
     return Array.from({ length: 42 }, (_, index) => addDays(firstDay, index));
   }, [month]);
   const activityByDate = useMemo(() => {
-    const result = new Map<string, { income: number; expense: number; transfer: boolean }>();
+    const result = new Map<string, { income: number; expense: number; adjustment: number; transfer: boolean; hasAdjustment: boolean }>();
     for (const transaction of transactions) {
-      const current = result.get(transaction.date) ?? { income: 0, expense: 0, transfer: false };
+      const current = result.get(transaction.date) ?? { income: 0, expense: 0, adjustment: 0, transfer: false, hasAdjustment: false };
       if (transaction.type === 'income') current.income += transaction.amount;
       if (transaction.type === 'expense') current.expense += transaction.amount;
+      if (transaction.type === 'adjustment') {
+        current.adjustment += transaction.adjustmentDirection === 'decrease' ? -transaction.amount : transaction.amount;
+        current.hasAdjustment = true;
+      }
       if (transaction.type === 'transfer') current.transfer = true;
       result.set(transaction.date, current);
     }
@@ -114,7 +118,7 @@ export default function CalendarScreen() {
             const isToday = isSameDay(date, new Date());
             const isSelected = isSameDay(date, selectedDate);
             const inCurrentMonth = isSameMonth(date, month);
-            const hasNet = Boolean(activity && activity.income !== activity.expense);
+            const hasNet = Boolean(activity && activity.income - activity.expense + activity.adjustment !== 0);
 
             return (
               <Pressable
@@ -144,6 +148,7 @@ export default function CalendarScreen() {
                   {activity?.income ? <View style={[styles.dot, styles.incomeDot]} /> : null}
                   {activity?.expense ? <View style={[styles.dot, styles.expenseDot]} /> : null}
                   {activity?.transfer ? <View style={[styles.dot, styles.transferDot]} /> : null}
+                  {activity?.hasAdjustment ? <View style={[styles.dot, styles.adjustmentDot]} /> : null}
                   {hasNet ? (
                     <View
                       style={[
@@ -166,6 +171,7 @@ export default function CalendarScreen() {
         <Legend color={colors.expense} label={t('calendar.expense')} />
         <Legend color={colors.accent} label={t('calendar.netPositive')} />
         <Legend color={colors.text} label={t('calendar.transfer')} />
+        <Legend color={colors.warning} label={t('day.adjustments')} />
       </View>
 
       <Pressable
@@ -249,6 +255,7 @@ const styles = StyleSheet.create({
   incomeDot: { backgroundColor: colors.income },
   expenseDot: { backgroundColor: colors.expense },
   transferDot: { backgroundColor: colors.text },
+  adjustmentDot: { backgroundColor: colors.warning },
   netPositiveDot: { backgroundColor: colors.accent },
   netNegativeDot: { backgroundColor: colors.textSecondary },
   legend: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md, marginTop: spacing.md },

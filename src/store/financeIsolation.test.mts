@@ -247,6 +247,32 @@ test('user A cannot create a transfer to a wallet that belongs to user B', async
   assert.ok(!harness.financeStore.getState().transactions.some((item) => item.id === 'cross-user-transfer'));
 });
 
+test('budgets remain private across account switches', async () => {
+  const harness = makeHarness();
+  await harness.financeStore.persist.rehydrate();
+  harness.setAuth(loginAs('user-a', 'a@example.com'));
+  await flush();
+  harness.financeStore.getState().addBudget({
+    id: 'budget-a',
+    name: 'A food limit',
+    categoryId: 'food',
+    amount: 10_000,
+    period: 'monthly',
+    startDate: '2026-10-01',
+    endDate: '2026-10-31',
+    archivedAt: null,
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-01T00:00:00.000Z',
+  });
+  await flush();
+
+  harness.setAuth({ status: 'unauthenticated', user: null });
+  await flush();
+  harness.setAuth(loginAs('user-b', 'b@example.com'));
+  await flush();
+  assert.ok(!harness.financeStore.getState().budgets.some((budget) => budget.id === 'budget-a'));
+});
+
 test('guest data migrates to first account once, never leaks to second', async () => {
   const harness = makeHarness();
   await harness.financeStore.persist.rehydrate();

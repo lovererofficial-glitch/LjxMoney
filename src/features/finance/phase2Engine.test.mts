@@ -4,10 +4,16 @@ import test from 'node:test';
 import {
   addStreakCompletion,
   calculateBudgetSummary,
+  calculateAdjustment,
+  calculateDailyBalance,
+  calculateExpense,
   calculateGoalSummary,
+  calculateIncome,
   calculateOpeningBalanceForDate,
+  calculateTransferTotal,
   calculateStreakSummary,
   calculateWalletBalance,
+  getCategoryIncome,
   getCategorySpending,
   getDailyBalanceSeries,
   getDailyExpenseSeries,
@@ -17,6 +23,7 @@ import {
   getNetCashFlowByDateRange,
   getPeriodComparison,
   getPeriodDateRange,
+  getStatisticsSummary,
   getWalletExpenseSpending,
   getWalletSpending,
   getWeekdaySpending,
@@ -93,6 +100,34 @@ test('empty calendar dates carry opening wallet balance and all earlier cash flo
   assert.equal(calculateOpeningBalanceForDate('2026-10-04', transactions, wallets), 15_300_000);
 });
 
+test('calendar day summary uses engine balances and reports transfers separately', () => {
+  const day = '2026-10-08';
+  const transactions = [
+    makeTransaction('prior-adjustment', 'adjustment', 500_000, '2026-10-07'),
+    makeTransfer('prior-transfer', 2_000_000, '2026-10-07'),
+    makeTransaction('day-income', 'income', 2_000_000, day),
+    makeTransaction('day-expense', 'expense', 500_000, day),
+    makeTransfer('day-transfer', 1_000_000, day),
+    { ...makeTransaction('day-adjustment', 'adjustment', 500_000, day), adjustmentDirection: 'decrease' as const },
+  ];
+  const dayTransactions = transactions.filter((transaction) => transaction.date === day);
+  const daily = calculateDailyBalance(
+    day,
+    dayTransactions,
+    calculateOpeningBalanceForDate(day, transactions, wallets),
+  );
+
+  assert.equal(daily.openingBalance, 15_500_000);
+  assert.equal(daily.income, 2_000_000);
+  assert.equal(daily.expense, 500_000);
+  assert.equal(daily.adjustment, -500_000);
+  assert.equal(calculateTransferTotal(dayTransactions), 1_000_000);
+  assert.equal(daily.closingBalance, 16_500_000);
+  assert.equal(calculateIncome(dayTransactions), 2_000_000);
+  assert.equal(calculateExpense(dayTransactions), 500_000);
+  assert.equal(calculateAdjustment(dayTransactions), -500_000);
+});
+
 test('transfer changes source and destination balances but preserves net worth and cash-flow totals', () => {
   const transfer = makeTransfer('transfer', 2_000_000, '2026-10-02');
   const transactions = [transfer];
@@ -115,6 +150,48 @@ test('transfer changes source and destination balances but preserves net worth a
     getWalletSpending(transactions).map(({ walletId, net }) => [walletId, net]),
     [['bank', 2_000_000], ['cash', -2_000_000]],
   );
+});
+
+test('statistics separate transfers and adjustments from income and expense', () => {
+  const transactions = [
+    makeTransaction('salary', 'income', 10_000_000, '2026-10-08', 'cash', 'salary'),
+    makeTransaction('food', 'expense', 4_000_000, '2026-10-08', 'cash', 'food'),
+    makeTransfer('internal', 3_000_000, '2026-10-08'),
+    { ...makeTransaction('cash-count', 'adjustment', 500_000, '2026-10-08'), adjustmentDirection: 'decrease' as const },
+  ];
+
+  assert.deepEqual(getStatisticsSummary(transactions), {
+    income: 10_000_000,
+    expense: 4_000_000,
+    net: 6_000_000,
+    transactionCount: 4,
+    transferTotal: 3_000_000,
+    adjustmentTotal: -500_000,
+  });
+  assert.equal(calculateTransferTotal(transactions), 3_000_000);
+  assert.deepEqual(getCategoryIncome(transactions, [
+    { id: 'salary', name: 'Salary', color: '#0f0', type: 'income' },
+    { id: 'food', name: 'Food', color: '#f00', type: 'expense' },
+  ]).map(({ id, total }) => [id, total]), [['salary', 10_000_000]]);
+});
+
+test('statistics period ranges cover day, week, month, and year', () => {
+  const anchor = new Date(2026, 9, 8, 12);
+  const day = getPeriodDateRange('day', anchor);
+  const week = getPeriodDateRange('week', anchor);
+  const month = getPeriodDateRange('month', anchor);
+  const year = getPeriodDateRange('year', anchor);
+
+  assert.equal(day.start.getDate(), 8);
+  assert.equal(day.end.getDate(), 8);
+  assert.equal(week.start.getDate(), 5);
+  assert.equal(week.end.getDate(), 11);
+  assert.equal(month.start.getDate(), 1);
+  assert.equal(month.end.getDate(), 31);
+  assert.equal(year.start.getMonth(), 0);
+  assert.equal(year.start.getDate(), 1);
+  assert.equal(year.end.getMonth(), 11);
+  assert.equal(year.end.getDate(), 31);
 });
 
 test('historical transfer add, edit, and delete recalculate balance chain without changing total', () => {
@@ -269,6 +346,7 @@ test('budget summaries calculate real category expense, remaining, daily values,
     makeTransaction('expense', 'expense', 750, '2026-10-02'),
     makeTransaction('income', 'income', 10_000, '2026-10-02'),
     makeTransfer('transfer', 500, '2026-10-02'),
+    { ...makeTransaction('adjustment', 'adjustment', 250, '2026-10-02'), categoryId: '' },
   ];
   const summary = calculateBudgetSummary(budget, transactions);
 

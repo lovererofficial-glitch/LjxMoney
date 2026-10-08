@@ -7,14 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FinanceBarChart, type FinanceChartPoint } from '../../src/components/FinanceBarChart';
 import {
   calculateNetCashFlow,
+  getCategoryIncome,
   getCategorySpending,
   getDailyBalanceSeries,
   getDailyExpenseSeries,
   getDailyIncomeSeries,
-  getIncomeByDateRange,
-  getExpenseByDateRange,
   getPeriodComparison,
   getPeriodDateRange,
+  getStatisticsSummary,
   getTransactionsInDateRange,
   getWalletExpenseSpending,
   getWeekdaySpending,
@@ -52,15 +52,8 @@ export default function StatsScreen() {
     () => getTransactionsInDateRange(transactions, previousRange.start, previousRange.end),
     [previousRange.end, previousRange.start, transactions],
   );
-  const income = useMemo(
-    () => getIncomeByDateRange(periodTransactions, startDate, endDate),
-    [endDate, periodTransactions, startDate],
-  );
-  const expense = useMemo(
-    () => getExpenseByDateRange(periodTransactions, startDate, endDate),
-    [endDate, periodTransactions, startDate],
-  );
-  const net = income - expense;
+  const summary = useMemo(() => getStatisticsSummary(periodTransactions), [periodTransactions]);
+  const { income, expense, net } = summary;
   const comparison = useMemo(
     () => getPeriodComparison(periodTransactions, previousTransactions),
     [periodTransactions, previousTransactions],
@@ -86,6 +79,10 @@ export default function StatsScreen() {
   );
   const categorySpending = useMemo(
     () => getCategorySpending(periodTransactions, categories),
+    [categories, periodTransactions],
+  );
+  const categoryIncome = useMemo(
+    () => getCategoryIncome(periodTransactions, categories),
     [categories, periodTransactions],
   );
   const walletSpending = useMemo(
@@ -234,6 +231,11 @@ export default function StatsScreen() {
         <SummaryCard label={t('statistics.expense')} value={expense} tone="expense" language={language} />
         <SummaryCard label={t('statistics.net')} value={net} tone={net >= 0 ? 'income' : 'expense'} language={language} />
       </View>
+      <View style={styles.activitySummary}>
+        <ActivityMetric label={t('statistics.transfers')} value={formatLocalizedCurrency(summary.transferTotal, language)} />
+        <ActivityMetric label={t('statistics.adjustments')} value={formatLocalizedCurrency(summary.adjustmentTotal, language)} />
+        <ActivityMetric label={t('statistics.transactionCount')} value={String(summary.transactionCount)} />
+      </View>
       <View style={styles.comparisonCard}>
         <Text style={styles.sectionTitle}>
           {t('statistics.comparison', { period: t(`statistics.${period}` as TranslationKey).toLowerCase() })}
@@ -280,6 +282,20 @@ export default function StatsScreen() {
             </View>
           </View>
         )) : <Text style={styles.emptyText}>{t('statistics.noExpense')}</Text>}
+        </View>
+      <View style={styles.listCard}>
+        <Text style={styles.sectionTitle}>{t('statistics.incomeByCategory')}</Text>
+        {categoryIncome.length ? categoryIncome.map((category) => (
+          <View key={category.id} style={styles.metricRow}>
+            <View style={styles.metricHeader}>
+              <View style={styles.nameWrap}>
+                <View style={[styles.dot, { backgroundColor: category.color }]} />
+                <Text style={styles.metricName}>{localizeCategoryName(category.id, category.name, t)}</Text>
+              </View>
+              <Text style={styles.metricValue}>{formatLocalizedCurrency(category.total, language)}</Text>
+            </View>
+          </View>
+        )) : <Text style={styles.emptyText}>{t('statistics.noIncomeCategory')}</Text>}
       </View>
       <View style={styles.listCard}>
         <Text style={styles.sectionTitle}>{t('statistics.walletSpending')}</Text>
@@ -327,6 +343,13 @@ const SummaryCard = ({
   </View>
 );
 
+const ActivityMetric = ({ label, value }: { label: string; value: string }) => (
+  <View style={styles.activityMetric}>
+    <Text style={styles.activityLabel}>{label}</Text>
+    <Text style={styles.activityValue} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+  </View>
+);
+
 const ComparisonRow = ({ label, value, expense }: { label: string; value: number | null; expense: boolean }) => {
   const favorable = value !== null && (expense ? value <= 0 : value >= 0);
   return (
@@ -367,6 +390,10 @@ const styles = StyleSheet.create({
   navText: { color: colors.accent, fontSize: 25, lineHeight: 28 },
   rangeText: { color: colors.text, fontSize: 15, fontWeight: '700' },
   summaryGrid: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  activitySummary: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  activityMetric: { flex: 1, minWidth: 0, minHeight: 70, justifyContent: 'center', backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.sm },
+  activityLabel: { color: colors.textSecondary, fontSize: 11, marginBottom: spacing.xs },
+  activityValue: { color: colors.text, fontSize: 13, fontWeight: '700' },
   summaryCard: { flex: 1, minHeight: 90, justifyContent: 'center', backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md },
   summaryLabel: { color: colors.textSecondary, fontSize: 12, marginBottom: spacing.xs },
   summaryValue: { fontSize: 15, fontWeight: '800' },

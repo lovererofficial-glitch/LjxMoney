@@ -262,6 +262,48 @@ test('transfer syncs offline, restores from cloud, and repeated cycles do not du
   assert.equal(restore.getLocal().transactions.length, 0);
 });
 
+test('budget deletion tombstone removes the cloud row without affecting transactions', async () => {
+  const harness = makeHarness();
+  const local = withBaseData(emptySnapshot());
+  local.budgets = [{
+    id: 'budget-delete',
+    name: 'Food limit',
+    categoryId: 'food',
+    amount: 10_000,
+    period: 'monthly',
+    startDate: '2026-10-01',
+    endDate: '2026-10-31',
+    archivedAt: null,
+    createdAt: OLDER,
+    updatedAt: OLDER,
+  }];
+  local.transactions = [transaction('budget-related-expense')];
+  harness.setLocal(local);
+  harness.cloud.setOffline(true);
+  await assert.rejects(() => runSyncCycle(harness.deps));
+  harness.cloud.setOffline(false);
+  await runSyncCycle(harness.deps);
+  assert.equal(harness.cloud.tables.budgets.size, 1);
+  assert.equal(harness.cloud.tables.transactions.size, 1);
+
+  const restore = makeHarness();
+  restore.cloud.tables.categories.set('food', category('food'));
+  restore.cloud.tables.budgets.set('budget-delete', structuredClone(harness.cloud.tables.budgets.get('budget-delete')!));
+  await runSyncCycle(restore.deps);
+  assert.equal(restore.getLocal().budgets[0]?.name, 'Food limit');
+
+  const afterDelete = harness.getLocal();
+  afterDelete.budgets = [];
+  harness.setLocal(afterDelete);
+  const meta = harness.getMeta();
+  meta.tombstones.push({ entity: 'budgets', id: 'budget-delete', deletedAt: NOW });
+  await harness.deps.saveMeta(meta);
+  await runSyncCycle(harness.deps);
+
+  assert.equal(harness.cloud.tables.budgets.size, 0);
+  assert.equal(harness.cloud.tables.transactions.size, 1);
+});
+
 test('offline changes keep local data untouched and fail as offline', async () => {
   const harness = makeHarness();
   harness.setLocal(withBaseData(emptySnapshot()));

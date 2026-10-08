@@ -34,7 +34,7 @@ import type {
 } from '../features/finance/models';
 import type { SyncSnapshot } from '../sync/syncTypes';
 
-export type SyncDeletionListener = (entity: 'transactions' | 'goalContributions', id: string) => void;
+export type SyncDeletionListener = (entity: 'transactions' | 'budgets' | 'goalContributions', id: string) => void;
 
 const syncDeletionListeners = new Set<SyncDeletionListener>();
 
@@ -51,7 +51,7 @@ export const registerSyncDeletionListener = (listener: SyncDeletionListener): ((
   };
 };
 
-const notifySyncDeletion = (entity: 'transactions' | 'goalContributions', id: string) => {
+const notifySyncDeletion = (entity: 'transactions' | 'budgets' | 'goalContributions', id: string) => {
   for (const listener of syncDeletionListeners) {
     try {
       listener(entity, id);
@@ -91,6 +91,7 @@ interface FinanceState {
   addBudget: (budget: Budget) => void;
   updateBudget: (budgetId: string, updates: Partial<Budget>) => void;
   archiveBudget: (budgetId: string) => void;
+  deleteBudget: (budgetId: string) => void;
   addGoal: (goal: SavingsGoal) => void;
   updateGoal: (goalId: string, updates: Partial<SavingsGoal>) => void;
   archiveGoal: (goalId: string) => void;
@@ -212,7 +213,7 @@ const normalizeWalletTimestamp = (timestamp: string | undefined, fallback: strin
   return new Date(timestamp).toISOString();
 };
 
-const validateBudget = (budget: Budget, categories: Category[]) => {
+const validateBudget = (budget: Budget, categories: Category[], allowArchivedCategory = false) => {
   if (!budget.name.trim()) {
     throw new Error('Enter a budget name.');
   }
@@ -220,7 +221,7 @@ const validateBudget = (budget: Budget, categories: Category[]) => {
     throw new Error('Budget amount must be a positive whole number of VND.');
   }
   const category = categories.find((item) => item.id === budget.categoryId);
-  if (!category || category.type !== 'expense') {
+  if (!category || category.type !== 'expense' || (category.archivedAt && !allowArchivedCategory)) {
     throw new Error('Choose a valid expense category for this budget.');
   }
   if (!isValidTransactionDate(budget.startDate) || !isValidTransactionDate(budget.endDate)) {
@@ -459,7 +460,7 @@ export const createFinanceStore = (storage: StateStorage) =>
           createdAt: existing.createdAt,
           updatedAt: new Date().toISOString(),
         };
-        validateBudget(updated, state.categories);
+        validateBudget(updated, state.categories, updated.categoryId === existing.categoryId);
         set({
           budgets: state.budgets.map((budget) => (budget.id === budgetId ? updated : budget)),
         });
@@ -475,6 +476,14 @@ export const createFinanceStore = (storage: StateStorage) =>
             budget.id === budgetId ? { ...budget, archivedAt, updatedAt: archivedAt } : budget,
           ),
         });
+      },
+      deleteBudget: (budgetId) => {
+        const state = get();
+        if (!state.budgets.some((budget) => budget.id === budgetId)) {
+          throw new Error('This budget no longer exists.');
+        }
+        set({ budgets: state.budgets.filter((budget) => budget.id !== budgetId) });
+        notifySyncDeletion('budgets', budgetId);
       },
       addGoal: (goal) => {
         const state = get();

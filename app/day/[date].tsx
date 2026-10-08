@@ -8,6 +8,7 @@ import { TransactionRow } from '../../src/components/TransactionRow';
 import {
   calculateDailyBalance,
   calculateOpeningBalanceForDate,
+  calculateTransferTotal,
 } from '../../src/features/finance/financeEngine';
 import { formatLocalizedCurrency, formatLocalizedDate } from '../../src/i18n/formatting';
 import { useI18n } from '../../src/i18n';
@@ -39,6 +40,7 @@ export default function DayDetailScreen() {
       ),
     [date, transactions, wallets],
   );
+  const transferTotal = useMemo(() => calculateTransferTotal(dayTransactions), [dayTransactions]);
 
   if (!hasHydrated) {
     return (
@@ -67,6 +69,8 @@ export default function DayDetailScreen() {
             <SummaryItem label={t('day.opening')} value={dailyBalance.openingBalance} language={language} />
             <SummaryItem label={t('home.income')} value={dailyBalance.income} tone="income" language={language} />
             <SummaryItem label={t('home.expense')} value={dailyBalance.expense} tone="expense" language={language} />
+            <SummaryItem label={t('day.adjustments')} value={dailyBalance.adjustment} tone={dailyBalance.adjustment < 0 ? 'expense' : 'income'} language={language} />
+            <SummaryItem label={t('day.transfers')} value={transferTotal} tone="transfer" language={language} />
           </View>
         </View>
 
@@ -111,12 +115,17 @@ const SummaryItem = ({
 }: {
   label: string;
   value: number;
-  tone?: 'income' | 'expense';
+  tone?: 'income' | 'expense' | 'transfer';
   language: 'vi' | 'en';
 }) => (
   <View style={styles.summaryItem}>
     <Text style={styles.cardLabel}>{label}</Text>
-    <Text style={[styles.summaryValue, tone === 'income' && styles.income, tone === 'expense' && styles.expense]}>
+    <Text style={[
+      styles.summaryValue,
+      tone === 'income' && styles.income,
+      tone === 'expense' && styles.expense,
+      tone === 'transfer' && styles.transfer,
+    ]}>
       {formatLocalizedCurrency(value, language)}
     </Text>
   </View>
@@ -134,11 +143,12 @@ const styles = StyleSheet.create({
   balanceCard: { backgroundColor: colors.surfaceElevated, borderRadius: radius.lg, padding: spacing.lg },
   cardLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: '700', letterSpacing: 0.7 },
   closingBalance: { color: colors.text, fontSize: typography.headline, fontWeight: '800', marginTop: spacing.xs },
-  summaryGrid: { flexDirection: 'row', marginTop: spacing.lg, gap: spacing.sm },
-  summaryItem: { flex: 1 },
+  summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.lg, gap: spacing.sm },
+  summaryItem: { flexGrow: 1, flexBasis: '28%', minWidth: 78 },
   summaryValue: { color: colors.text, fontSize: 14, fontWeight: '700', marginTop: 6 },
   income: { color: colors.income },
   expense: { color: colors.expense },
+  transfer: { color: colors.accent },
   listHeader: {
     flexDirection: 'row',
     alignItems: 'center',
