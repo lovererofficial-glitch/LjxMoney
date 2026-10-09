@@ -11,6 +11,7 @@ import { transactionDetailRoute } from '../../src/lib/transactionRoutes';
 import { getDisplayAmount, useSecurityStore } from '../../src/security/securityStore';
 import { requestSyncNow } from '../../src/sync/syncRuntime';
 import { useFinanceStore } from '../../src/store/financeStore';
+import { getWalletDeleteBlocker } from '../../src/store/walletDeletion';
 import { colors, radius, spacing, typography } from '../../src/theme/theme';
 import {
   useWalletQrStore,
@@ -36,6 +37,7 @@ export default function WalletDetailScreen() {
   const getQrCloudPath = useWalletQrStore((state) => state.getQrCloudPath);
   const setQrCloudPath = useWalletQrStore((state) => state.setQrCloudPath);
   const hasPendingQrUpload = useWalletQrStore((state) => state.hasPendingQrUpload);
+  const hasPendingQrDeletion = useWalletQrStore((state) => state.hasPendingQrDeletion);
   const setQrForWallet = useWalletQrStore((state) => state.setQrForWallet);
   const clearQrForWallet = useWalletQrStore((state) => state.clearQrForWallet);
   const queueQrDeletion = useWalletQrStore((state) => state.queueQrDeletion);
@@ -239,21 +241,112 @@ export default function WalletDetailScreen() {
     );
   }
 
+  const archiveWalletNow = () => {
+    useFinanceStore.getState().archiveWallet(wallet.id);
+    router.back();
+  };
+
   const archive = () => {
     Alert.alert(t('wallet.archiveConfirmation'), t('wallet.archiveWarning'), [
       { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.archive'),
-        style: 'destructive',
-        onPress: () => {
-          useFinanceStore.getState().archiveWallet(wallet.id);
-          router.back();
-        },
-      },
+      { text: t('common.archive'), style: 'destructive', onPress: archiveWalletNow },
     ]);
   };
 
   const restore = () => useFinanceStore.getState().restoreWallet(wallet.id);
+
+  const inspectDeleteBlocker = async (targetWallet: typeof wallet) => {
+    const finance = useFinanceStore.getState();
+    const qrStore = useWalletQrStore.getState();
+    let localQr = userId ? await qrStore.hydrateWalletQr(userId, targetWallet.id) : null;
+    if (localQr && !isWalletQrFileAvailable(localQr)) {
+      await qrStore.clearQrForWallet(userId!, targetWallet.id);
+      localQr = null;
+    }
+    const [pendingUpload, pendingDelete, localCloudPath] = userId
+      ? await Promise.all([
+          hasPendingQrUpload(userId, targetWallet.id),
+          hasPendingQrDeletion(userId, targetWallet.id),
+          getQrCloudPath(userId, targetWallet.id),
+        ])
+      : [false, false, null] as const;
+    return getWalletDeleteBlocker(targetWallet, finance.transactions, {
+      hasLocalQr: Boolean(localQr),
+      pendingUpload,
+      pendingDelete,
+      localCloudPath,
+    });
+  };
+
+  const showDeleteBlockedMessage = (blocker: NonNullable<Awaited<ReturnType<typeof inspectDeleteBlocker>>>) => {
+    if (blocker === 'history') {
+      Alert.alert(t('wallet.deleteWalletBlockedTitle'), t('wallet.deleteWalletHistoryMessage'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        wallet.archivedAt
+          ? { text: t('common.restore'), onPress: restore }
+          : { text: t('common.archive'), onPress: archiveWalletNow },
+      ]);
+      return;
+    }
+    const message = blocker === 'qr'
+      ? t('wallet.deleteWalletQrMessage')
+      : t('wallet.deleteWalletQrCleanupMessage');
+    const buttons = blocker === 'qr'
+      ? [
+          { text: t('common.cancel'), style: 'cancel' as const },
+          { text: t('wallet.removeQr'), style: 'destructive' as const, onPress: removeWalletQr },
+        ]
+      : [{ text: t('common.close'), style: 'cancel' as const }];
+    Alert.alert(t('wallet.deleteWalletBlockedTitle'), message, buttons);
+  };
+
+  const requestWalletDelete = async () => {
+    if (loadingQr) {
+      return;
+    }
+    const blocker = await inspectDeleteBlocker(wallet);
+    if (blocker) {
+      showDeleteBlockedMessage(blocker);
+      return;
+    }
+
+    const ownerId = userId ?? null;
+    const confirmDelete = async () => {
+      if ((useAuthStore.getState().user?.id ?? null) !== ownerId) {
+        return;
+      }
+      const latestWallet = useFinanceStore.getState().wallets.find((item) => item.id === wallet.id);
+      if (!latestWallet) {
+        router.back();
+        return;
+      }
+      const currentBlocker = await inspectDeleteBlocker(latestWallet);
+      if (currentBlocker) {
+        showDeleteBlockedMessage(currentBlocker);
+        return;
+      }
+      try {
+        useFinanceStore.getState().deleteWallet(wallet.id);
+        if (ownerId) {
+          await clearQrForWallet(ownerId, wallet.id);
+          await clearPendingQrUpload(ownerId, wallet.id);
+          await clearPendingQrDeletion(ownerId, wallet.id);
+        }
+        router.back();
+      } catch {
+        Alert.alert(t('wallet.deleteWalletBlockedTitle'), t('wallet.deleteWalletFailed'));
+      }
+    };
+
+    Alert.alert(
+      t('wallet.deleteWalletConfirmTitle'),
+      t('wallet.deleteWalletConfirmMessage', { name: walletDisplayName }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('wallet.deleteWallet'), style: 'destructive', onPress: () => { void confirmDelete(); } },
+      ],
+    );
+  };
 
   return (
     <ScrollView
@@ -419,6 +512,15 @@ export default function WalletDetailScreen() {
           </Pressable>
         ) : null}
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        disabled={loadingQr}
+        onPress={() => { void requestWalletDelete(); }}
+        style={({ pressed }) => [styles.deleteWalletButton, pressed && styles.negativeButtonPressed, loadingQr && styles.disabledButton]}
+      >
+        <Text style={styles.deleteWalletLabel}>{t('wallet.deleteWallet')}</Text>
+      </Pressable>
 
       <Modal
         visible={qrPreviewVisible && Boolean(walletPaymentQr)}
@@ -672,6 +774,17 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginTop: spacing.lg,
   },
+  deleteWalletButton: {
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 102, 114, 0.35)',
+    backgroundColor: 'rgba(255, 102, 114, 0.08)',
+    marginTop: spacing.sm,
+  },
+  deleteWalletLabel: { color: colors.danger, fontSize: typography.body, fontWeight: '700' },
   secondaryButton: {
     flex: 1,
     minHeight: 44,

@@ -18,6 +18,7 @@ import {
 import type { Budget, GoalContribution, SavingsGoal, Transaction, Wallet } from '../features/finance/models.ts';
 import { findTransactionById, transactionDetailRoute, transactionDetailRouteId } from '../lib/transactionRoutes.ts';
 import { createFinanceStore as createEmptyFinanceStore, registerSyncDeletionListener } from './financeStoreCore.ts';
+import { getWalletDeleteBlocker } from './walletDeletion.ts';
 import {
   createWalletQrStore,
   walletQrNeedsRemoteRestore,
@@ -195,6 +196,77 @@ test('new finance state starts with no wallets and keeps only manually added wal
 
   const restored = createEmptyFinanceStore(storage);
   assert.deepEqual(restored.getState().wallets.map((wallet) => wallet.id), ['mb', 'momo']);
+});
+
+test('empty wallet deletion updates local totals, emits a sync deletion, and survives restart', () => {
+  const storage = createMemoryStorage();
+  const store = createEmptyFinanceStore(storage);
+  const wallet = makeWallet('empty-wallet');
+  store.getState().addWallet(wallet);
+  const deletions: { entity: string; id: string }[] = [];
+  const unsubscribe = registerSyncDeletionListener((entity, id) => deletions.push({ entity, id }));
+
+  store.getState().deleteWallet(wallet.id);
+  unsubscribe();
+  assert.deepEqual(store.getState().wallets, []);
+  assert.deepEqual(deletions, [{ entity: 'wallets', id: wallet.id }]);
+  assert.deepEqual(calculateWalletBalances(store.getState().transactions, store.getState().wallets), {});
+
+  const restarted = createEmptyFinanceStore(storage);
+  assert.deepEqual(restarted.getState().wallets, []);
+});
+
+test('wallet deletion blocks every transaction reference, including archived history and transfers', () => {
+  const cases: { label: string; transaction: Transaction }[] = [
+    { label: 'expense', transaction: makeTransaction('expense-ref', 'expense', 100, '2026-10-01', 'target') },
+    { label: 'income', transaction: makeTransaction('income-ref', 'income', 100, '2026-10-01', 'target') },
+    { label: 'transfer source', transaction: makeTransfer('transfer-source-ref', 100, '2026-10-01', 'target', 'other') },
+    { label: 'transfer destination', transaction: makeTransfer('transfer-destination-ref', 100, '2026-10-01', 'other', 'target') },
+    { label: 'adjustment', transaction: makeAdjustment('adjustment-ref', 100, '2026-10-01', 'increase', 'target') },
+  ];
+
+  for (const { label, transaction } of cases) {
+    const store = createEmptyFinanceStore(createMemoryStorage());
+    store.getState().addWallet(makeWallet('target', 1_000));
+    store.getState().addWallet(makeWallet('other', 1_000));
+    store.getState().addTransaction(transaction);
+    if (label === 'expense') {
+      store.getState().archiveWallet('target');
+    }
+    assert.throws(() => store.getState().deleteWallet('target'), /transaction history/i, label);
+    assert.ok(store.getState().wallets.some((wallet) => wallet.id === 'target'), label);
+    assert.equal(store.getState().transactions.length, 1, label);
+  }
+});
+
+test('archived empty wallet can be deleted, but QR-backed wallet must remove QR first', () => {
+  const store = createEmptyFinanceStore(createMemoryStorage());
+  store.getState().addWallet(makeWallet('archived-empty'));
+  store.getState().archiveWallet('archived-empty');
+  store.getState().deleteWallet('archived-empty');
+  assert.equal(store.getState().wallets.some((wallet) => wallet.id === 'archived-empty'), false);
+
+  const qrWallet = { ...makeWallet('qr-wallet'), paymentQrPath: 'user-a/qr-wallet/payment-qr-v1' };
+  store.getState().addWallet(qrWallet);
+  assert.equal(getWalletDeleteBlocker(qrWallet, []), 'qr');
+  assert.throws(() => store.getState().deleteWallet(qrWallet.id), /payment QR/i);
+  assert.ok(store.getState().wallets.some((wallet) => wallet.id === qrWallet.id));
+
+  assert.equal(getWalletDeleteBlocker(makeWallet('local-qr'), [], { hasLocalQr: true }), 'qr');
+  assert.equal(getWalletDeleteBlocker(makeWallet('uploading-qr'), [], { pendingUpload: true }), 'qr');
+  assert.equal(getWalletDeleteBlocker(makeWallet('cleanup-qr'), [], { pendingDelete: true }), 'qr-cleanup');
+});
+
+test('wallet deletion does not seed default wallets after the list becomes empty', () => {
+  const storage = createMemoryStorage();
+  const store = createEmptyFinanceStore(storage);
+  store.getState().addWallet(makeWallet('only-wallet'));
+
+  store.getState().deleteWallet('only-wallet');
+
+  const restored = createEmptyFinanceStore(storage);
+  assert.deepEqual(restored.getState().wallets, []);
+  assert.equal(restored.getState().transactions.length, 0);
 });
 
 test('legacy seed wallet is restored only when saved transaction history references it', async () => {

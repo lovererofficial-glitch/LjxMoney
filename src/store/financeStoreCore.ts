@@ -1,3 +1,4 @@
+import { getWalletDeleteBlocker } from './walletDeletion.ts';
 import { format, isValid, parseISO } from 'date-fns';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -33,7 +34,7 @@ import type {
 } from '../features/finance/models';
 import type { SyncSnapshot } from '../sync/syncTypes';
 
-export type SyncDeletionListener = (entity: 'transactions' | 'budgets' | 'goalContributions', id: string) => void;
+export type SyncDeletionListener = (entity: 'wallets' | 'transactions' | 'budgets' | 'goalContributions', id: string) => void;
 
 const syncDeletionListeners = new Set<SyncDeletionListener>();
 
@@ -50,7 +51,7 @@ export const registerSyncDeletionListener = (listener: SyncDeletionListener): ((
   };
 };
 
-const notifySyncDeletion = (entity: 'transactions' | 'budgets' | 'goalContributions', id: string) => {
+const notifySyncDeletion = (entity: 'wallets' | 'transactions' | 'budgets' | 'goalContributions', id: string) => {
   for (const listener of syncDeletionListeners) {
     try {
       listener(entity, id);
@@ -83,6 +84,7 @@ interface FinanceState {
   addWallet: (wallet: Wallet) => void;
   updateWallet: (walletId: string, updates: Partial<Wallet>) => void;
   archiveWallet: (walletId: string) => void;
+  deleteWallet: (walletId: string) => void;
   restoreWallet: (walletId: string) => void;
   addCategory: (category: Category) => void;
   updateCategory: (categoryId: string, updates: Partial<Category>) => void;
@@ -383,6 +385,23 @@ export const createFinanceStore = (storage: StateStorage) =>
             wallet.id === walletId ? { ...wallet, archivedAt: null, updatedAt: now } : wallet,
           ),
         });
+      },
+      deleteWallet: (walletId) => {
+        const state = get();
+        const wallet = state.wallets.find((item) => item.id === walletId);
+        if (!wallet) {
+          throw new Error('This wallet no longer exists.');
+        }
+        const blocker = getWalletDeleteBlocker(wallet, state.transactions);
+        if (blocker === 'history') {
+          throw new Error('A wallet with transaction history cannot be deleted.');
+        }
+        if (blocker === 'qr') {
+          throw new Error('Remove the wallet payment QR before deleting this wallet.');
+        }
+        const wallets = state.wallets.filter((item) => item.id !== walletId);
+        set({ wallets, balances: calculateBalances(state.transactions, wallets) });
+        notifySyncDeletion('wallets', walletId);
       },
       addCategory: (category) => {
         const state = get();
