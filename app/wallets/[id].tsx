@@ -256,6 +256,10 @@ export default function WalletDetailScreen() {
   const restore = () => useFinanceStore.getState().restoreWallet(wallet.id);
 
   const inspectDeleteBlocker = async (targetWallet: typeof wallet) => {
+    if (!targetWallet) {
+      return 'history';
+    }
+
     const finance = useFinanceStore.getState();
     const qrStore = useWalletQrStore.getState();
     let localQr = userId ? await qrStore.hydrateWalletQr(userId, targetWallet.id) : null;
@@ -302,6 +306,9 @@ export default function WalletDetailScreen() {
 
   const requestWalletDelete = async () => {
     if (loadingQr) {
+      return;
+    }
+    if (!wallet) {
       return;
     }
     const blocker = await inspectDeleteBlocker(wallet);
