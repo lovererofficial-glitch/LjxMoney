@@ -30,6 +30,8 @@ const vi: TranslationShape<typeof en> = {
     days: '{count} ngày',
     items: '{count} mục',
     transactions: '{count} giao dịch',
+    showBalance: 'Hiện số dư',
+    hideBalance: 'Ẩn số dư',
   },
   navigation: {
     home: 'Trang chủ',
@@ -88,6 +90,7 @@ const vi: TranslationShape<typeof en> = {
     trackGoal: 'Theo dõi tiến độ từ các khoản đóng góp.',
     totalBalance: 'TỔNG SỐ DƯ',
     dataLoadError: 'Không thể tải dữ liệu tài chính trên thiết bị. Dữ liệu đã lưu không bị xóa.',
+    acrossWallets: 'Tổng hợp từ {count} ví',
   },
   calendar: {
     title: 'Lịch',

@@ -374,7 +374,7 @@ export default function WalletDetailScreen() {
           <Text style={styles.cardTitle}>{t('wallet.currentBalance')}</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={isBalanceHidden ? 'Show balance' : 'Hide balance'}
+            accessibilityLabel={isBalanceHidden ? t('common.showBalance') : t('common.hideBalance')}
             onPress={toggleBalanceHidden}
             style={styles.eyeButton}
           >
@@ -828,14 +828,14 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: '#080A0B',
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: '#080A0B',
+    backgroundColor: colors.background,
   },
   modalContent: {
     flex: 1,
@@ -846,8 +846,8 @@ const styles = StyleSheet.create({
   },
   modalHeading: { alignItems: 'center', gap: spacing.xs },
   modalColorBadge: { width: 8, height: 8, borderRadius: 4, marginBottom: spacing.xs },
-  modalTitle: { color: '#FFFFFF', fontSize: 27, fontWeight: '800', textAlign: 'center' },
-  modalSubtitle: { color: '#B2B7B6', fontSize: 13, fontWeight: '700', textAlign: 'center', textTransform: 'uppercase' },
+  modalTitle: { color: colors.text, fontSize: 27, fontWeight: '800', textAlign: 'center' },
+  modalSubtitle: { color: colors.textSecondary, fontSize: 13, fontWeight: '700', textAlign: 'center', textTransform: 'uppercase' },
   modalQrFrame: {
     aspectRatio: 1,
     backgroundColor: '#ffffff',
@@ -855,7 +855,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#D7B56D',
+    shadowColor: colors.accent,
     shadowOpacity: 0.16,
     shadowRadius: 32,
     shadowOffset: { width: 0, height: 12 },
@@ -866,18 +866,18 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#ffffff',
   },
-  modalHint: { color: '#E6E8E7', fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  modalHint: { color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
   modalCloseButton: {
     minHeight: 48,
     minWidth: 160,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
   },
-  modalCloseLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  modalCloseLabel: { color: colors.text, fontSize: 15, fontWeight: '700' },
 });
 

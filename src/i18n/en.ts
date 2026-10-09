@@ -27,6 +27,8 @@ const en = {
     days: '{count} days',
     items: '{count} items',
     transactions: '{count} transactions',
+    showBalance: 'Show balance',
+    hideBalance: 'Hide balance',
   },
   navigation: {
     home: 'Home',
@@ -85,6 +87,7 @@ const en = {
     trackGoal: 'Build progress from recorded contributions.',
     totalBalance: 'TOTAL BALANCE',
     dataLoadError: 'Local financial data could not be loaded. Your saved data has not been deleted.',
+    acrossWallets: 'Across {count} wallets',
   },
   calendar: {
     title: 'Calendar',

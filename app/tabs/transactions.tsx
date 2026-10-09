@@ -138,7 +138,7 @@ export default function TransactionsScreen() {
                 setCategoryFilter('');
               }
             }}
-            style={[styles.typeFilter, typeFilter === option.value && styles.typeFilterActive]}
+            style={({ pressed }) => [styles.typeFilter, typeFilter === option.value && styles.typeFilterActive, pressed && styles.pressed]}
           >
             <Text style={[styles.typeFilterLabel, typeFilter === option.value && styles.typeFilterLabelActive]}>
               {t(option.label)}
@@ -152,14 +152,14 @@ export default function TransactionsScreen() {
           accessibilityRole="button"
           accessibilityState={{ expanded: filtersExpanded }}
           onPress={() => setFiltersExpanded((expanded) => !expanded)}
-          style={styles.filterToggle}
+          style={({ pressed }) => [styles.filterToggle, pressed && styles.pressed]}
         >
           <Text style={styles.filterToggleLabel}>
             {t('search.filters')}{activeFilterCount ? ` · ${t('search.activeFilters', { count: activeFilterCount })}` : ''}
           </Text>
         </Pressable>
         {activeFilterCount ? (
-          <Pressable accessibilityRole="button" onPress={clearFilters}>
+          <Pressable accessibilityRole="button" onPress={clearFilters} style={({ pressed }) => pressed && styles.pressed}>
             <Text style={styles.clearLabel}>{t('search.clearFilters')}</Text>
           </Pressable>
         ) : null}
@@ -217,29 +217,35 @@ export default function TransactionsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 96 }]}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <View style={styles.transactionWrap}>
-              <Text style={styles.dateTag}>{formatLocalizedDate(parseISO(item.date), 'dd MMM yyyy', language)}</Text>
-              <TransactionRow
-                transaction={item}
-                onPress={() => router.push(transactionDetailRoute(item.id))}
-                showDate={false}
-              />
-            </View>
-          )}
+          renderItem={({ item, index }) => {
+            const previousDate = index > 0 ? visibleTransactions[index - 1].date : null;
+            const showDateTag = item.date !== previousDate;
+            return (
+              <View style={styles.transactionWrap}>
+                {showDateTag ? (
+                  <Text style={styles.dateTag}>{formatLocalizedDate(parseISO(item.date), 'dd MMM yyyy', language)}</Text>
+                ) : null}
+                <TransactionRow
+                  transaction={item}
+                  onPress={() => router.push(transactionDetailRoute(item.id))}
+                  showDate={false}
+                />
+              </View>
+            );
+          }}
         />
       ) : transactions.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>{t('empty.noTransactions')}</Text>
           <Text style={styles.emptyCopy}>{t('empty.incomeExpenseAppear')}</Text>
-          <Pressable onPress={() => router.push('/transaction/new')} style={styles.emptyButton}>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/transaction/new')} style={styles.emptyButton}>
             <Text style={styles.emptyButtonLabel}>{t('empty.addTransaction')}</Text>
           </Pressable>
         </View>
       ) : (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>{t('search.noMatchingTransactions')}</Text>
-          <Pressable onPress={clearFilters} style={styles.emptyButton}>
+          <Pressable accessibilityRole="button" onPress={clearFilters} style={styles.emptyButton}>
             <Text style={styles.emptyButtonLabel}>{t('search.clearFilters')}</Text>
           </Pressable>
         </View>
@@ -319,6 +325,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   filterChipActive: { borderColor: colors.accent, backgroundColor: colors.primarySoft },
+  filterChipPressed: { opacity: 0.7 },
   filterChipLabel: { color: colors.textSecondary, fontSize: 12 },
   filterChipLabelActive: { color: colors.accent, fontWeight: '700' },
   addButton: {
@@ -384,7 +391,11 @@ const FilterChip = ({
     accessibilityRole="button"
     accessibilityState={{ selected }}
     onPress={onPress}
-    style={[styles.filterChip, selected && styles.filterChipActive]}
+    style={({ pressed }) => [
+      styles.filterChip,
+      selected && styles.filterChipActive,
+      pressed && styles.filterChipPressed,
+    ]}
   >
     <Text style={[styles.filterChipLabel, selected && styles.filterChipLabelActive]}>{label}</Text>
   </Pressable>

@@ -2,7 +2,7 @@ import { format } from 'date-fns';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BalanceCard } from '../../src/components/BalanceCard';
@@ -26,6 +26,7 @@ import { getStreakColor } from '../../src/features/finance/streakPresentation';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const prefersReducedMotion = useReducedMotion();
   const { language, t } = useI18n();
   const transactions = useFinanceStore((state) => state.transactions);
   const wallets = useFinanceStore((state) => state.wallets);
@@ -112,7 +113,7 @@ export default function HomeScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <Animated.View entering={FadeInDown.duration(360)} style={styles.headerRow}>
+      <Animated.View entering={prefersReducedMotion ? undefined : FadeInDown.duration(360)} style={styles.headerRow}>
         <View style={styles.profileWrap}>
           <Avatar
             userEmail={userEmail}
@@ -141,15 +142,11 @@ export default function HomeScreen() {
         </Text>
       ) : null}
 
-      <Animated.View entering={FadeInDown.delay(80).duration(440)} style={styles.heroStack}>
+      <Animated.View entering={prefersReducedMotion ? undefined : FadeInDown.delay(80).duration(400)} style={styles.heroStack}>
         <BalanceCard balance={totalBalance} />
-        <View style={styles.floatingMetrics}>
-          <MetricPill label={t('home.income')} value={todayIncome} tone="income" language={language} />
-          <MetricPill label={t('home.expense')} value={todayExpense} tone="expense" language={language} />
-        </View>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(160).duration(420)} style={styles.section}>
+      <Animated.View entering={prefersReducedMotion ? undefined : FadeInDown.delay(160).duration(420)} style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.today')}</Text>
           <Text style={styles.todayDate}>{formatLocalizedDate(new Date(), 'dd MMM', language)}</Text>
@@ -161,7 +158,7 @@ export default function HomeScreen() {
         </View>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(220).duration(420)} style={styles.quickActions}>
+      <Animated.View entering={prefersReducedMotion ? undefined : FadeInDown.delay(220).duration(420)} style={styles.quickActions}>
         <QuickAction label={t('home.addExpense')} onPress={() => createTransaction('expense')} variant="expense" />
         <QuickAction label={t('home.addIncome')} onPress={() => createTransaction('income')} variant="income" />
         <QuickAction label={t('home.transfer')} onPress={() => createTransaction('transfer')} variant="transfer" />
@@ -170,14 +167,15 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.budgets')}</Text>
-          <Pressable onPress={() => router.push('/budgets')}><Text style={styles.viewAll}>{t('common.viewAll')}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/budgets')} style={({ pressed }) => pressed && styles.viewAllPressed}><Text style={styles.viewAll}>{t('common.viewAll')}</Text></Pressable>
         </View>
         {compactBudgets.length ? (
           compactBudgets.map(({ budget, summary }) => (
             <Pressable
+              accessibilityRole="button"
               key={budget.id}
               onPress={() => router.push({ pathname: '/budget/[id]', params: { id: budget.id } })}
-              style={styles.compactCard}
+              style={({ pressed }) => [styles.compactCard, pressed && styles.compactCardPressed]}
             >
               <View style={styles.metricHeader}>
                 <Text style={styles.compactTitle}>{budget.name}</Text>
@@ -190,7 +188,11 @@ export default function HomeScreen() {
             </Pressable>
           ))
         ) : (
-          <Pressable onPress={() => router.push('/budgets')} style={styles.compactCard}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/budgets')}
+            style={({ pressed }) => [styles.compactCard, pressed && styles.compactCardPressed]}
+          >
             <Text style={styles.compactTitle}>{t('home.createBudget')}</Text>
             <Text style={styles.compactMeta}>{t('home.trackBudget')}</Text>
           </Pressable>
@@ -200,14 +202,15 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.goals')}</Text>
-          <Pressable onPress={() => router.push('/goals')}><Text style={styles.viewAll}>{t('common.viewAll')}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/goals')} style={({ pressed }) => pressed && styles.viewAllPressed}><Text style={styles.viewAll}>{t('common.viewAll')}</Text></Pressable>
         </View>
         {compactGoals.length ? (
           compactGoals.map(({ goal, summary }) => (
             <Pressable
+              accessibilityRole="button"
               key={goal.id}
               onPress={() => router.push({ pathname: '/goal/[id]', params: { id: goal.id } })}
-              style={styles.compactCard}
+              style={({ pressed }) => [styles.compactCard, pressed && styles.compactCardPressed]}
             >
               <View style={styles.metricHeader}>
                 <Text style={styles.compactTitle}>{goal.name}</Text>
@@ -220,7 +223,11 @@ export default function HomeScreen() {
             </Pressable>
           ))
         ) : (
-          <Pressable onPress={() => router.push('/goals')} style={styles.compactCard}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/goals')}
+            style={({ pressed }) => [styles.compactCard, pressed && styles.compactCardPressed]}
+          >
             <Text style={styles.compactTitle}>{t('home.createGoal')}</Text>
             <Text style={styles.compactMeta}>{t('home.trackGoal')}</Text>
           </Pressable>
@@ -230,7 +237,7 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.recentTransactions')}</Text>
-          <Pressable onPress={() => router.push('/tabs/transactions')}>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/tabs/transactions')} style={({ pressed }) => pressed && styles.viewAllPressed}>
             <Text style={styles.viewAll}>{t('common.viewAll')}</Text>
           </Pressable>
         </View>
@@ -244,42 +251,35 @@ export default function HomeScreen() {
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>{t('empty.noTransactions')}</Text>
             <Text style={styles.emptyCopy}>{t('empty.startTracking')}</Text>
-            <Pressable onPress={() => createTransaction('expense')} style={styles.emptyButton}>
+            <Pressable accessibilityRole="button" onPress={() => createTransaction('expense')} style={styles.emptyButton}>
               <Text style={styles.emptyButtonLabel}>{t('empty.addTransaction')}</Text>
             </Pressable>
           </View>
         )}
       </View>
       <View style={styles.manageRow}>
-        <Pressable onPress={() => router.push('/tabs/wallets')}><Text style={styles.manageLabel}>{t('wallet.wallets')}</Text></Pressable>
-        <Pressable onPress={() => router.push('/categories')}><Text style={styles.manageLabel}>{t('category.categories')}</Text></Pressable>
-        <Pressable onPress={() => router.push('/tabs/stats')}><Text style={styles.manageLabel}>{t('navigation.statistics')}</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/tabs/wallets')}><Text style={styles.manageLabel}>{t('wallet.wallets')}</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/categories')}><Text style={styles.manageLabel}>{t('category.categories')}</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/tabs/stats')}><Text style={styles.manageLabel}>{t('navigation.statistics')}</Text></Pressable>
       </View>
     </ScrollView>
   );
 }
 
 const QuickAction = ({ label, onPress, variant }: { label: string; onPress: () => void; variant: 'income' | 'expense' | 'transfer' }) => (
-  <Pressable accessibilityRole="button" onPress={onPress} style={[styles.quickActionButton, variant === 'income' && styles.quickActionIncome, variant === 'expense' && styles.quickActionExpense, variant === 'transfer' && styles.quickActionTransfer]}>
+  <Pressable
+    accessibilityRole="button"
+    onPress={onPress}
+    style={({ pressed }) => [
+      styles.quickActionButton,
+      variant === 'income' && styles.quickActionIncome,
+      variant === 'expense' && styles.quickActionExpense,
+      variant === 'transfer' && styles.quickActionTransfer,
+      pressed && styles.quickActionPressed,
+    ]}
+  >
     <Text style={[styles.quickActionLabel, variant === 'income' && styles.quickActionLabelIncome, variant === 'expense' && styles.quickActionLabelExpense, variant === 'transfer' && styles.quickActionLabelTransfer]}>{label}</Text>
   </Pressable>
-);
-
-const MetricPill = ({
-  label,
-  value,
-  tone,
-  language,
-}: {
-  label: string;
-  value: number;
-  tone: 'income' | 'expense';
-  language: 'vi' | 'en';
-}) => (
-  <View style={[styles.metricPill, tone === 'income' ? styles.metricPillIncome : styles.metricPillExpense]}>
-    <Text style={styles.metricPillLabel}>{label}</Text>
-    <Text style={[styles.metricPillValue, tone === 'income' ? styles.income : styles.expense]}>{formatLocalizedCurrency(value, language)}</Text>
-  </View>
 );
 
 const SummaryItem = ({
@@ -310,45 +310,17 @@ const styles = StyleSheet.create({
   profileWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1, minWidth: 0 },
   streakIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.xs, minWidth: 56 },
   streakCount: { fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  avatarBubble: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.accentSoft,
-    borderWidth: 1,
-    borderColor: 'rgba(215, 181, 109, 0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { color: colors.accent, fontWeight: '700', fontSize: 14 },
   eyebrow: { color: colors.textSecondary, fontSize: 12, marginBottom: 3, letterSpacing: 0.4 },
   title: { color: colors.text, fontSize: typography.headline, fontWeight: '800', maxWidth: 180 },
   errorBanner: { color: colors.expense, backgroundColor: colors.surface, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.md },
   heroStack: { marginBottom: spacing.lg },
-  floatingMetrics: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, marginHorizontal: 2 },
-  metricPill: {
-    flex: 1,
-    minHeight: 72,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  metricPillIncome: { backgroundColor: 'rgba(104, 242, 154, 0.06)' },
-  metricPillExpense: { backgroundColor: 'rgba(255, 102, 114, 0.06)' },
-  metricPillLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' },
-  metricPillValue: { marginTop: spacing.xs, fontSize: 18, fontWeight: '700' },
   section: { marginTop: spacing.lg },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
   sectionTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
   todayDate: { color: colors.textSecondary, fontSize: 14 },
   viewAll: { color: colors.accent, fontSize: 14, fontWeight: '600' },
-  summaryCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  viewAllPressed: { opacity: 0.75 },
+  summaryCard: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
   summaryItem: { flex: 1, minWidth: 0, minHeight: 52, justifyContent: 'center' },
   summaryLabel: { color: colors.textSecondary, fontSize: 13, marginBottom: 5 },
   summaryValue: { color: colors.text, fontSize: 15, fontWeight: '700' },
@@ -359,11 +331,20 @@ const styles = StyleSheet.create({
   quickActionIncome: { backgroundColor: 'rgba(104, 242, 154, 0.08)', borderColor: 'rgba(104, 242, 154, 0.18)' },
   quickActionExpense: { backgroundColor: 'rgba(255, 102, 114, 0.08)', borderColor: 'rgba(255, 102, 114, 0.18)' },
   quickActionTransfer: { backgroundColor: 'rgba(215, 181, 109, 0.08)', borderColor: 'rgba(215, 181, 109, 0.18)' },
+  quickActionPressed: { opacity: 0.72 },
   quickActionLabel: { color: colors.text, fontSize: 14, fontWeight: '700' },
   quickActionLabelIncome: { color: colors.income },
   quickActionLabelExpense: { color: colors.expense },
   quickActionLabelTransfer: { color: colors.warning },
-  compactCard: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
+  compactCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  compactCardPressed: { opacity: 0.75 },
   metricHeader: { flexDirection: 'row', justifyContent: 'space-between' },
   compactTitle: { color: colors.text, fontSize: 14, fontWeight: '700' },
   compactValue: { color: colors.accent, fontSize: 13, fontWeight: '700' },

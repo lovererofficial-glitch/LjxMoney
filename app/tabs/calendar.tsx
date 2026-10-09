@@ -80,7 +80,7 @@ export default function CalendarScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.title}>{t('calendar.title')}</Text>
-        <Pressable onPress={() => openDay(new Date())} style={styles.todayButton}>
+        <Pressable accessibilityRole="button" onPress={() => openDay(new Date())} style={({ pressed }) => [styles.todayButton, pressed && styles.pressed]}>
           <Text style={styles.todayLabel}>{t('calendar.today')}</Text>
         </Pressable>
       </View>
@@ -91,7 +91,7 @@ export default function CalendarScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('calendar.previousMonth')}
             onPress={() => showMonth(-1)}
-            style={styles.monthArrow}
+            style={({ pressed }) => [styles.monthArrow, pressed && styles.pressed]}
           >
             <Text style={styles.arrowText}>‹</Text>
           </Pressable>
@@ -100,7 +100,7 @@ export default function CalendarScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('calendar.nextMonth')}
             onPress={() => showMonth(1)}
-            style={styles.monthArrow}
+            style={({ pressed }) => [styles.monthArrow, pressed && styles.pressed]}
           >
             <Text style={styles.arrowText}>›</Text>
           </Pressable>
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   adjustmentDot: { backgroundColor: colors.warning },
   netPositiveDot: { backgroundColor: colors.accent },
   netNegativeDot: { backgroundColor: colors.textSecondary },
-  legend: { flexDirection: 'row', justifyContent: 'center', gap: spacing.md, marginTop: spacing.md },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.md },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot: { width: 6, height: 6, borderRadius: 3 },
   legendLabel: { color: colors.textSecondary, fontSize: 12 },

@@ -20,6 +20,9 @@ const WALLET_GLYPHS: Record<string, string> = {
 export default function WalletsScreen() {
   const { language, t } = useI18n();
   const insets = useSafeAreaInsets();
+  // Top edge of the absolute tab bar (tab bar: marginBottom 10 + height 58 + max(insets.bottom, 8)),
+  // plus a small gap so the FAB floats fully above it and inside the safe area.
+  const fabBottom = 68 + Math.max(insets.bottom, 8) + spacing.sm;
 
   const wallets = useFinanceStore((state) => state.wallets);
   const transactions = useFinanceStore((state) => state.transactions);
@@ -86,11 +89,11 @@ export default function WalletsScreen() {
           <Text numberOfLines={1} style={styles.viewWalletLabel}>{t('wallet.viewWallet')}</Text>
         </Pressable>
         {archived ? (
-          <Pressable onPress={() => restore(wallet)} style={({ pressed }) => [styles.textAction, pressed && styles.actionPressed]}>
+          <Pressable accessibilityRole="button" onPress={() => restore(wallet)} style={({ pressed }) => [styles.textAction, pressed && styles.actionPressed]}>
             <Text style={styles.restoreLabel}>{t('wallet.restore')}</Text>
           </Pressable>
         ) : (
-          <Pressable onPress={() => archive(wallet)} style={({ pressed }) => [styles.textAction, pressed && styles.actionPressed]}>
+          <Pressable accessibilityRole="button" onPress={() => archive(wallet)} style={({ pressed }) => [styles.textAction, pressed && styles.actionPressed]}>
             <Text style={styles.actionLabel}>{t('common.archive')}</Text>
           </Pressable>
         )}
@@ -99,16 +102,16 @@ export default function WalletsScreen() {
   );
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.xl }]}>
+    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom + 96 }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.totalBlock}>
           <View style={styles.totalHeader}>
             <Text style={styles.totalLabel}>{t('wallet.totalBalance')}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={isBalanceHidden ? 'Show balance' : 'Hide balance'} onPress={toggleBalanceHidden} style={styles.eyeButton}>
+            <Pressable accessibilityRole="switch" accessibilityLabel={isBalanceHidden ? t('common.showBalance') : t('common.hideBalance')} accessibilityState={{ checked: !isBalanceHidden }} onPress={toggleBalanceHidden} style={styles.eyeButton}>
               <Text style={styles.eyeText}>{isBalanceHidden ? '◉' : '◌'}</Text>
             </Pressable>
           </View>
-          <Text style={styles.totalValue}>{getDisplayAmount(totalBalance, language, isBalanceHidden)}</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit style={styles.totalValue}>{getDisplayAmount(totalBalance, language, isBalanceHidden)}</Text>
           <View style={styles.totalRule} />
         </View>
 
@@ -152,7 +155,7 @@ export default function WalletsScreen() {
         <Pressable
           onPress={() => router.push('/wallets/new')}
           accessibilityRole="button"
-          style={({ pressed }) => [styles.addButton, pressed && styles.fabPressed]}
+          style={({ pressed }) => [styles.addButton, { bottom: fabBottom }, pressed && styles.fabPressed]}
         >
           <Text style={styles.fabIcon}>{t('wallet.addAction')}</Text>
         </Pressable>
@@ -366,7 +369,6 @@ const styles = StyleSheet.create({
   },
   addButton: {
     position: 'absolute',
-    bottom: spacing.xl,
     left: spacing.xl,
     right: spacing.xl,
     height: 52,

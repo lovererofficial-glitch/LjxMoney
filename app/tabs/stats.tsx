@@ -207,7 +207,7 @@ export default function StatsScreen() {
           <Text style={styles.eyebrow}>{t('statistics.overview')}</Text>
           <Text style={styles.title}>{t('statistics.title')}</Text>
         </View>
-        <Pressable onPress={() => router.push('/tabs/wallets')} style={styles.secondaryButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('wallet.wallets')} onPress={() => router.push('/tabs/wallets')} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
           <Text style={styles.secondaryLabel}>{t('wallet.wallets')}</Text>
         </Pressable>
       </View>
@@ -227,22 +227,22 @@ export default function StatsScreen() {
         ))}
       </View>
       <View style={styles.rangeNavigation}>
-        <Pressable accessibilityLabel={t('statistics.previousPeriod')} onPress={() => shiftPeriod(-1)} style={styles.navButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('statistics.previousPeriod')} onPress={() => shiftPeriod(-1)} style={({ pressed }) => [styles.navButton, pressed && styles.pressed]}>
           <Text style={styles.navText}>‹</Text>
         </Pressable>
         <Text style={styles.rangeText}>{rangeLabel}</Text>
-        <Pressable accessibilityLabel={t('statistics.nextPeriod')} onPress={() => shiftPeriod(1)} style={styles.navButton}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('statistics.nextPeriod')} onPress={() => shiftPeriod(1)} style={({ pressed }) => [styles.navButton, pressed && styles.pressed]}>
           <Text style={styles.navText}>›</Text>
         </Pressable>
       </View>
       <View style={styles.netWorthCard}>
         <View style={styles.netWorthHeader}>
           <Text style={styles.netWorthLabel}>{t('statistics.netWorth')}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={isBalanceHidden ? 'Show balance' : 'Hide balance'} onPress={toggleBalanceHidden} style={styles.eyeButton}>
+          <Pressable accessibilityRole="switch" accessibilityLabel={isBalanceHidden ? t('common.showBalance') : t('common.hideBalance')} accessibilityState={{ checked: !isBalanceHidden }} onPress={toggleBalanceHidden} style={({ pressed }) => [styles.eyeButton, pressed && styles.pressed]}>
             <Text style={styles.eyeText}>{isBalanceHidden ? '◉' : '◌'}</Text>
           </Pressable>
         </View>
-        <Text style={styles.netWorthValue}>{getDisplayAmount(currentNetWorth, language, isBalanceHidden)}</Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit style={styles.netWorthValue}>{getDisplayAmount(currentNetWorth, language, isBalanceHidden)}</Text>
         <View style={styles.netWorthMeta}>
           <Text style={styles.netWorthMetaLabel}>{t('statistics.periodChange')}</Text>
           <Text style={[styles.netWorthChange, periodNetWorthChange < 0 ? styles.expense : styles.income]}>
@@ -319,9 +319,9 @@ export default function StatsScreen() {
             <View style={styles.metricHeader}>
               <View style={styles.nameWrap}>
                 <View style={[styles.dot, { backgroundColor: category.color }]} />
-                <Text style={styles.metricName}>{localizeCategoryName(category.id, category.name, t)}</Text>
+                <Text style={styles.metricName} numberOfLines={2}>{localizeCategoryName(category.id, category.name, t)}</Text>
               </View>
-              <Text style={styles.metricValue}>{formatLocalizedCurrency(category.total, language)}</Text>
+              <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>{formatLocalizedCurrency(category.total, language)}</Text>
             </View>
             <View style={styles.track}>
               <View style={[styles.fill, { width: `${category.total / maxCategory * 100}%`, backgroundColor: category.color }]} />
@@ -336,9 +336,9 @@ export default function StatsScreen() {
             <View style={styles.metricHeader}>
               <View style={styles.nameWrap}>
                 <View style={[styles.dot, { backgroundColor: category.color }]} />
-                <Text style={styles.metricName}>{localizeCategoryName(category.id, category.name, t)}</Text>
+                <Text style={styles.metricName} numberOfLines={2}>{localizeCategoryName(category.id, category.name, t)}</Text>
               </View>
-              <Text style={styles.metricValue}>{formatLocalizedCurrency(category.total, language)}</Text>
+              <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>{formatLocalizedCurrency(category.total, language)}</Text>
             </View>
           </View>
         )) : <Text style={styles.emptyText}>{t('statistics.noIncomeCategory')}</Text>}
@@ -350,9 +350,9 @@ export default function StatsScreen() {
             <View style={styles.metricHeader}>
               <View style={styles.nameWrap}>
                 <View style={[styles.dot, { backgroundColor: wallet.color }]} />
-                <Text style={styles.metricName}>{wallet.name}</Text>
+                <Text style={styles.metricName} numberOfLines={2}>{wallet.name}</Text>
               </View>
-              <Text style={styles.metricValue}>{formatLocalizedCurrency(wallet.total, language)}</Text>
+              <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>{formatLocalizedCurrency(wallet.total, language)}</Text>
             </View>
             <View style={styles.track}>
               <View style={[styles.fill, { width: `${wallet.total / maxWallet * 100}%`, backgroundColor: wallet.color }]} />
@@ -382,8 +382,8 @@ const SummaryCard = ({
   language: 'vi' | 'en';
 }) => (
   <View style={styles.summaryCard}>
-    <Text style={styles.summaryLabel}>{label}</Text>
-    <Text style={[styles.summaryValue, tone === 'income' ? styles.income : styles.expense]}>
+    <Text style={styles.summaryLabel} numberOfLines={1}>{label}</Text>
+    <Text adjustsFontSizeToFit numberOfLines={1} style={[styles.summaryValue, tone === 'income' ? styles.income : styles.expense]}>
       {formatLocalizedCurrency(value, language)}
     </Text>
   </View>
@@ -434,6 +434,7 @@ const styles = StyleSheet.create({
   rangeNavigation: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: spacing.md },
   navButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: radius.md, backgroundColor: colors.surface },
   navText: { color: colors.accent, fontSize: 25, lineHeight: 28 },
+  pressed: { opacity: 0.75 },
   rangeText: { color: colors.text, fontSize: 15, fontWeight: '700' },
   netWorthCard: {
     backgroundColor: colors.surfaceElevated,

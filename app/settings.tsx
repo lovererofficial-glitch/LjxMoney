@@ -75,7 +75,7 @@ export default function SettingsScreen() {
       style={styles.screen}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
+        { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + 96 },
       ]}
       showsVerticalScrollIndicator={false}
     >

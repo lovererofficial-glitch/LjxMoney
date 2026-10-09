@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   image: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: colors.border,
   },
   fallback: {
     backgroundColor: 'rgba(215, 181, 109, 0.12)',
@@ -107,9 +107,9 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   loadingShell: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
