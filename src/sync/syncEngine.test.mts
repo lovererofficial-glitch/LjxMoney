@@ -219,6 +219,37 @@ test('wallet custom name and type survive cloud sync and restore independently',
   assert.equal(restore.getLocal().wallets[0]?.paymentQrPath, 'user-1/wallet-mb/payment-qr-v1');
 });
 
+test('wallet delete tombstone removes cloud row and stale device sync cannot resurrect it', async () => {
+  const deletingDevice = makeHarness();
+  const initial = withBaseData(emptySnapshot());
+  initial.wallets = [wallet('empty-wallet')];
+  deletingDevice.setLocal(initial);
+  await runSyncCycle(deletingDevice.deps);
+  assert.equal(deletingDevice.cloud.tables.wallets.has('empty-wallet'), true);
+
+  const afterDelete = deletingDevice.getLocal();
+  afterDelete.wallets = [];
+  deletingDevice.setLocal(afterDelete);
+  const deletionMeta = deletingDevice.getMeta();
+  deletionMeta.tombstones.push({ entity: 'wallets', id: 'empty-wallet', deletedAt: NOW });
+  await deletingDevice.deps.saveMeta(deletionMeta);
+  await runSyncCycle(deletingDevice.deps);
+  assert.equal(deletingDevice.cloud.tables.wallets.has('empty-wallet'), false);
+  assert.equal(deletingDevice.getMeta().tombstones.length, 0);
+
+  const staleDevice = makeHarness();
+  const staleSnapshot = withBaseData(emptySnapshot());
+  staleSnapshot.wallets = [wallet('empty-wallet')];
+  staleDevice.setLocal(staleSnapshot);
+  const staleMeta = createEmptySyncMeta();
+  staleMeta.ownerUserId = 'user-1';
+  staleMeta.synced.wallets['empty-wallet'] = OLDER;
+  await staleDevice.deps.saveMeta(staleMeta);
+  await runSyncCycle(staleDevice.deps);
+  assert.deepEqual(staleDevice.getLocal().wallets, []);
+  assert.equal(staleDevice.cloud.tables.wallets.has('empty-wallet'), false);
+});
+
 test('transfer syncs offline, restores from cloud, and repeated cycles do not duplicate it', async () => {
   const harness = makeHarness();
   const local = withBaseData(emptySnapshot());

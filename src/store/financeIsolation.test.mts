@@ -231,6 +231,48 @@ test('wallets remain scoped to their owner across logout and account switches', 
   assert.deepEqual(harness.financeStore.getState().streak.completionDates, ['2026-10-01']);
 });
 
+test('deleting a wallet affects only its owner and stays deleted after re-login', async () => {
+  const harness = makeHarness();
+  await harness.financeStore.persist.rehydrate();
+  harness.setAuth(loginAs('user-a', 'a@example.com'));
+  await flush();
+  harness.financeStore.getState().addWallet({
+    id: 'shared-local-id',
+    name: 'A wallet',
+    type: 'cash',
+    color: '#D7B56D',
+    initialBalance: 0,
+    archivedAt: null,
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-01T00:00:00.000Z',
+  });
+  harness.financeStore.getState().deleteWallet('shared-local-id');
+  await flush();
+  assert.ok(!harness.financeStore.getState().wallets.some((wallet) => wallet.id === 'shared-local-id'));
+
+  harness.setAuth({ status: 'unauthenticated', user: null });
+  await flush();
+  harness.setAuth(loginAs('user-b', 'b@example.com'));
+  await flush();
+  harness.financeStore.getState().addWallet({
+    id: 'shared-local-id',
+    name: 'B wallet',
+    type: 'bank',
+    color: '#3DD598',
+    initialBalance: 0,
+    archivedAt: null,
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-01T00:00:00.000Z',
+  });
+  assert.equal(harness.financeStore.getState().wallets.find((wallet) => wallet.id === 'shared-local-id')?.name, 'B wallet');
+
+  harness.setAuth({ status: 'unauthenticated', user: null });
+  await flush();
+  harness.setAuth(loginAs('user-a', 'a@example.com'));
+  await flush();
+  assert.ok(!harness.financeStore.getState().wallets.some((wallet) => wallet.id === 'shared-local-id'));
+});
+
 test('user A cannot create a transfer to a wallet that belongs to user B', async () => {
   const harness = makeHarness();
   await harness.financeStore.persist.rehydrate();
